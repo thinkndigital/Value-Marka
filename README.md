@@ -3,7 +3,8 @@
 A multi-vendor marketplace platform. See [ARCHITECTURE.md](./ARCHITECTURE.md),
 [DATABASE.md](./DATABASE.md) and [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)
 for the full design and phased build plan — this README only covers running
-the codebase locally.
+the codebase locally. For deploying to Google Cloud, see
+[DEPLOYMENT.md](./DEPLOYMENT.md).
 
 Stack: Next.js 16 (App Router) + TypeScript, Tailwind CSS v4, PostgreSQL +
 Prisma 7, `next-intl` (English/Arabic, RTL).
