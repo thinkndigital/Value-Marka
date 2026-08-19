@@ -86,6 +86,10 @@
     "title": "Checkout",
     "shippingAddress": "Shipping address",
     "addAddress": "Add a new address",
+    "paymentMethod": "Payment method",
+    "cod": "Cash on delivery",
+    "payWithCard": "Pay online (card)",
+    "payWithPaypal": "Pay with PayPal",
     "orderSummary": "Order summary",
     "subtotal": "Subtotal",
     "tax": "Tax",
@@ -95,7 +99,8 @@
     "placing": "Placing order…",
     "emptyCart": "Your cart is empty.",
     "noAddress": "Add a shipping address to continue.",
-    "awaitingPayment": "Payment collection isn't wired up yet — your order is recorded and awaiting payment processing."
+    "codNote": "Pay in cash when your order arrives.",
+    "onlinePaymentNote": "You'll be redirected to complete payment securely after placing your order."
   },
   "Orders": {
     "title": "Your orders",

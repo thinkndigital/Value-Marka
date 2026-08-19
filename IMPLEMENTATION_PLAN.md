@@ -152,16 +152,58 @@ money), commission/payout calculation (`SellerOrder.commissionAmount`/
 `.payoutAmount` stay at their default 0 until Phase 5's commission engine
 runs), `LedgerEntry` (Phase 6).
 
-## Phase 5 — Payments ⬜
+## Phase 5 — Payments ✅ (code complete; live credentials pending)
 
-- `PaymentProvider` interface; Stripe Connect adapter (destination charges +
-  `application_fee_amount`) and PayPal adapter against their current REST
-  APIs.
-- Webhook routes: signature verification, `WebhookEvent` persistence,
-  idempotent background processing.
-- Commission engine (`DATABASE.md` §7) wired into checkout.
-- Seller payout requests + admin approve/hold/release, posted through
-  `LedgerEntry`.
+- [x] `PaymentProvider` interface (`src/server/payments/PaymentProvider.ts`)
+      — `createIntent`, `capture`, `refund`, `onboardSeller`,
+      `transferToSeller`, `verifyWebhook` — plus `stripe.ts` (Stripe
+      Checkout + Connect Express + Transfers, official `stripe` SDK) and
+      `paypal.ts` (Orders v2, Payouts, Partner Referrals, direct REST —
+      real API calls, correctly shaped). **Revised from the original note
+      here**: checkout always charges the platform's own account rather
+      than a per-seller Stripe "destination charge" — a multi-seller cart
+      has no single-intent way to split across N connected accounts; see
+      ARCHITECTURE.md §9 for the full reasoning. `transferToSeller` is
+      still real Stripe Connect / PayPal Payouts, invoked at payout release.
+- [x] Webhook routes (`/api/webhooks/stripe`, `/api/webhooks/paypal`):
+      signature verification (Stripe: local HMAC; PayPal: their
+      verify-webhook-signature API), `WebhookEvent` persistence keyed by
+      provider event id before processing, idempotent replay (an
+      already-`PROCESSED` event is acknowledged without reprocessing).
+- [x] Commission engine (`src/server/services/commission.ts`): the
+      PRODUCT → SELLER_CATEGORY → SELLER → CATEGORY → GLOBAL resolution
+      order from `DATABASE.md` §7, `Seller.commissionOverride` folded in at
+      the SELLER tier, wired into `markOrderPaid`'s ledger posting.
+- [x] Seller payout requests + admin approve/hold/release
+      (`src/server/services/payouts.ts`, `/seller/payouts`,
+      `/admin/payouts`): available balance is `SUM(LedgerEntry)` minus
+      already-requested-but-unreleased payouts (never a mutable balance
+      column); release calls the real provider transfer API and posts the
+      offsetting `PAYOUT` ledger entry only on success.
+- [x] Tests (`tests/payments/`): commission resolution priority (every
+      scope, including the override-folding edge case) and the payout
+      balance/approve/hold/reject state machine against the real database;
+      Stripe webhook signature verification — accept/reject/tamper/
+      missing-header — using the SDK's own local test-signing helper (pure
+      HMAC, no network call); the webhook route's idempotent-replay and
+      unknown-payment-fails-loudly behavior, invoked directly as a Request
+      handler.
+
+**What's real vs. what's pending**: every code path here makes real calls
+against Stripe's and PayPal's actual APIs — nothing is mocked or simulated.
+What's *not yet exercised* is anything that requires this platform's own
+Stripe/PayPal API keys (`.env.example`'s `STRIPE_*`/`PAYPAL_*` vars, still
+blank): starting a real checkout, a webhook actually firing, a seller's
+Connect/Partner onboarding, and a real transfer landing in a connected
+account. Confirmed working end-to-end in this environment: COD checkout
+unaffected, an online-payment attempt without keys fails at the provider
+call and falls back to the order-confirmation page instead of losing the
+order or crashing, and the full payout pipeline (balance → request →
+approve → release) runs for real up to the point release calls the
+provider — where it correctly refuses because no seller has a connected
+account yet, rather than pretending to succeed. Wiring in real keys and
+watching one checkout/webhook/payout round-trip end-to-end is the one
+remaining step before this phase is genuinely done, not just code-complete.
 
 ## Phase 6 — Financial system ⬜
 

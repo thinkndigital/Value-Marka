@@ -150,12 +150,29 @@ orders don't re-price when today's rate changes. All arithmetic uses
 ## 9. Payments architecture
 
 `src/server/payments/PaymentProvider.ts` defines the adapter interface
-(`createIntent`, `capture`, `refund`, `onboardSeller`, `verifyWebhook`, …).
-`stripe.ts` implements it with Stripe Connect (destination charges +
-`application_fee_amount` for commission, per Stripe's current marketplace
-guidance) and `paypal.ts` implements it with PayPal's current REST APIs.
+(`createIntent`, `capture`, `refund`, `onboardSeller`, `transferToSeller`,
+`verifyWebhook`, …). `stripe.ts` implements it against Stripe Connect,
+`paypal.ts` against PayPal's current REST APIs (Orders v2 + Payouts).
 Checkout/refund/payout services call the interface, never a provider SDK
 directly, so HyperPay/Moyasar/Tap can be added later as pure adapters.
+
+**Revised from the original Phase 1 note**: a single Stripe *destination
+charge* (`transfer_data.destination` + `application_fee_amount` on one
+PaymentIntent) can only route funds to **one** connected account, but a
+Value Marka cart routinely spans several sellers in one checkout — there is
+no Stripe or PayPal primitive that splits one customer payment across N
+connected accounts in a single intent. Checkout therefore always charges
+the **platform's own account** for the order's `grandTotal` (a "separate
+charges and transfers" model); each `SellerOrder`'s payable share accrues
+in `LedgerEntry` at capture time exactly as it would either way. Money only
+actually moves to a seller's connected account (`transferToSeller`) when
+their `Payout` request is approved and released — which was already the
+documented request→approve→release flow (`DATABASE.md` §6/§7,
+`IMPLEMENTATION_PLAN.md` Phase 5), so this only changes *when* Connect is
+invoked, not the shape sellers see. A single-seller cart is a special case
+of the same path, not a different one, so there is exactly one checkout
+code path to reason about and test.
+
 Webhook routes verify signatures, persist the raw event to `WebhookEvent`
 before processing (idempotency + replay), and hand off processing to a
 background job (spec §30).

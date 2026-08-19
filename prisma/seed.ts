@@ -202,6 +202,7 @@ const ROLES: {
       "inventory.read",
       "inventory.update",
       "payouts.read",
+      "payouts.create",
       "coupons.read",
       "coupons.create",
       "coupons.update",

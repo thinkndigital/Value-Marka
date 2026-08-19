@@ -354,3 +354,20 @@ export async function requestReturn(userId: string, orderNumber: string, sellerO
     await recomputeOrderStatus(tx, order.id);
   });
 }
+
+/**
+ * System-triggered (not a seller action): called from
+ * src/server/services/payments.ts once a payment actually captures. No
+ * `assertSellerOwns` check here — there is no calling seller, only the
+ * payment provider's own confirmation that money moved. Every SellerOrder
+ * that's still PENDING (i.e. hasn't already been cancelled) moves straight
+ * to CONFIRMED, since a captured payment is exactly what tells a seller
+ * they can start fulfilling (DATABASE.md §6/§7).
+ */
+export async function confirmSellerOrdersOnPayment(tx: Prisma.TransactionClient, orderId: string) {
+  const pending = await tx.sellerOrder.findMany({ where: { orderId, status: "PENDING" } });
+  for (const sellerOrder of pending) {
+    await tx.sellerOrder.update({ where: { id: sellerOrder.id }, data: { status: "CONFIRMED" } });
+  }
+  await recomputeOrderStatus(tx, orderId);
+}

@@ -6,7 +6,8 @@ import { requireSellerForAction } from "@/server/auth/seller-guard";
 import { requirePermission, ForbiddenError, UnauthorizedError } from "@/server/rbac";
 import { writeAuditLog } from "@/server/audit";
 import { shipmentSchema } from "@/server/validation/order";
-import { transitionSellerOrder, OrderError } from "@/server/services/orders";
+import { transitionSellerOrder, getSellerOrderForSeller, OrderError } from "@/server/services/orders";
+import { refundSellerOrder, PaymentError } from "@/server/services/payments";
 
 export interface SellerOrderFormState {
   error?: string;
@@ -132,6 +133,33 @@ export async function markRefundedAction(
   sellerOrderId: string,
   _prevState: SellerOrderFormState,
   _formData: FormData,
-) {
+): Promise<SellerOrderFormState> {
+  try {
+    // Same authorization gate transitionSellerOrder itself enforces —
+    // required here too since the real provider refund call must happen
+    // only after the caller is confirmed to *own this specific order*, not
+    // just be *some* approved seller.
+    const { user, seller } = await requireSellerForAction();
+    await requirePermission(user.id, "orders.update", seller.id);
+    await getSellerOrderForSeller(seller.id, sellerOrderId); // throws if not this seller's order
+
+    // If the parent order was paid online, actually issue the refund
+    // through the provider before flipping the status — a no-op for a COD
+    // order (refundSellerOrder returns null when there's no captured
+    // Payment), in which case this just records the offline/cash
+    // settlement as before.
+    await refundSellerOrder(sellerOrderId);
+  } catch (err) {
+    if (
+      err instanceof PaymentError ||
+      err instanceof ForbiddenError ||
+      err instanceof UnauthorizedError ||
+      err instanceof OrderError
+    ) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+
   return runTransition(sellerOrderId, "REFUNDED");
 }

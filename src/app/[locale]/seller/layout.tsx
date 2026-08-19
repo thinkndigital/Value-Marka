@@ -7,6 +7,7 @@ const NAV = [
   { href: "/seller/products", label: "Products" },
   { href: "/seller/orders", label: "Orders" },
   { href: "/seller/warehouses", label: "Warehouses" },
+  { href: "/seller/payouts", label: "Payouts" },
 ];
 
 export default async function SellerLayout({
