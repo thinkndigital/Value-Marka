@@ -205,13 +205,51 @@ account yet, rather than pretending to succeed. Wiring in real keys and
 watching one checkout/webhook/payout round-trip end-to-end is the one
 remaining step before this phase is genuinely done, not just code-complete.
 
-## Phase 6 — Financial system ⬜
+## Phase 6 — Financial system ✅
 
-- `LedgerEntry`-backed reporting: gross/net sales, COGS, gross/net profit,
-  platform commission, seller payables, expenses, refunds, discounts, taxes.
-- Supplier + `PurchaseOrder` receiving flow feeding `InventoryMovement`.
-- Expense entry + categorized reporting.
-- CSV export for every report in spec §57.
+- [x] `LedgerEntry`-backed reporting (`src/server/services/reports.ts`):
+      gross/net sales, COGS, gross/net profit, commission, tax, shipping,
+      expenses, refunds, discounts, and a seller's current payable balance
+      — every figure a pure derivation over `LedgerEntry`/`Expense`/
+      `OrderItem`, never a cached or mutable total. Two views: a
+      seller-scoped report (`/seller/reports`) and a platform-wide one
+      (`/admin/reports`), both filterable by currency and date range.
+- [x] Supplier CRUD (`/seller/suppliers`, seller-isolated) and the full
+      `PurchaseOrder` lifecycle (`src/server/services/purchaseOrders.ts`,
+      `/seller/purchase-orders`): draft → submit → receive → paid.
+      Receiving posts a real `PURCHASE` `InventoryMovement` for exactly the
+      *received* quantity, not the ordered one, and supports partial
+      receiving across multiple receipts (`DATABASE.md` §4) — confirmed
+      against the real database that a 10-unit PO received as 4 then 6
+      lands on exactly 10 in stock, not 20. Marking a PO paid is a manual
+      settlement record (paying a supplier happens outside the platform)
+      that posts a real `PURCHASE` ledger entry for accurate COGS/profit
+      reporting.
+- [x] Expense entry (`src/server/services/expenses.ts`), both seller-scoped
+      (`/seller/expenses`) and platform-level (`/admin/expenses`,
+      `Expense.sellerId = null`), categorized per the seeded
+      `ExpenseCategory` enum, each entry posting/reversing a real `EXPENSE`
+      ledger entry on create/delete.
+- [x] CSV export (`/api/seller/reports/export`, `/api/admin/reports/export`)
+      — one consolidated metric/value export per report (gross/net sales,
+      COGS, profit, commission, tax, shipping, expenses, refunds,
+      discounts, payable balance as rows) rather than eight separate
+      single-number files carrying the same data.
+- [x] Tests (`tests/finance/`): PO partial-receiving/over-receiving/
+      cancel-then-receive-refused/pay-once-only, PO seller isolation, and
+      report arithmetic (sales/commission/COGS/expenses/profit/payable
+      balance, including an expense's effect and its reversal on delete)
+      against real seeded ledger and order-item rows — the platform-wide
+      report test asserts deltas against a pre-seed baseline rather than
+      absolute totals, since it's a genuinely system-wide aggregate over a
+      database other test files also write real ledger rows into.
+
+Confirmed working end-to-end in this environment via the browser: add a
+supplier, create and submit a PO, receive it in two partial batches
+(stock landed exactly right), add an expense, and the seller report and
+its balance reflected everything correctly against this session's real
+historical order/payout data — including COGS computed from a real
+delivered-then-returned order left over from Phase 4's testing.
 
 ## Phase 7 — Marketing ⬜
 

@@ -207,6 +207,13 @@ const ROLES: {
       "coupons.create",
       "coupons.update",
       "profile.update",
+      ...crud("suppliers"),
+      ...crud("purchaseOrders"),
+      ...crud("expenses"),
+      "finance.read",
+      "finance.export",
+      "reports.read",
+      "reports.export",
     ],
   },
   {
