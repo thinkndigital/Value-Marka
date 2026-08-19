@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/*
+ * Value Marka design tokens.
+ * Source of truth: the brand's navy/yellow palette, Cairo (display) +
+ * Tajawal (body) type system, and the 4px spacing/shadow/radius scale
+ * from the existing Value Marka brand assets. Tailwind's default spacing
+ * scale (0.25rem base) already matches the brand's 4/8/12/16/20/24/32/40/
+ * 48/64/80/96px steps 1:1, so spacing is left at Tailwind's default and
+ * only color, radius, shadow and font tokens are overridden below.
+ */
+@theme {
+  /* Brand color ramps */
+  --color-navy-50: #f4f6f8;
+  --color-navy-100: #e6e9ed;
+  --color-navy-200: #c7ced6;
+  --color-navy-300: #9aa5b1;
+  --color-navy-400: #6b7887;
+  --color-navy-500: #475463;
+  --color-navy-600: #333e48;
+  --color-navy-700: #2c343e;
+  --color-navy-800: #242c35;
+  --color-navy-900: #1c2229;
+
+  --color-yellow-50: #fffbe6;
+  --color-yellow-100: #fff6c2;
+  --color-yellow-200: #ffec8a;
+  --color-yellow-300: #ffe14d;
+  --color-yellow-400: #fed700;
+  --color-yellow-500: #e6bf00;
+  --color-yellow-600: #c9a600;
+
+  /* Semantic status colors */
+  --color-success: #1e8a5f;
+  --color-success-bg: #e7f6ef;
+  --color-danger: #d43b3b;
+  --color-danger-bg: #fceaea;
+  --color-warning: #b8790a;
+  --color-warning-bg: #fdf1de;
+  --color-info: #2f6fb0;
+  --color-info-bg: #e9f2fb;
+
+  /* Semantic surface / text / border roles */
+  --color-bg-page: var(--color-navy-50);
+  --color-bg-surface: #ffffff;
+  --color-bg-sunken: var(--color-navy-100);
+  --color-text-primary: var(--color-navy-600);
+  --color-text-secondary: var(--color-navy-500);
+  --color-text-muted: var(--color-navy-400);
+  --color-text-inverse: #ffffff;
+  --color-text-on-yellow: var(--color-navy-600);
+  --color-border-default: var(--color-navy-200);
+  --color-border-strong: var(--color-navy-300);
+  --color-border-focus: var(--color-navy-600);
+
+  /* Type system: Cairo carries display/headings, Tajawal carries body copy.
+     Both ship full Latin + Arabic glyph sets at matching weights. */
+  --font-display: var(--font-cairo), -apple-system, "Segoe UI", sans-serif;
+  --font-body: var(--font-tajawal), var(--font-cairo), -apple-system,
+    "Segoe UI", sans-serif;
+
+  /* Radius scale */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(28, 34, 41, 0.08);
+  --shadow-md: 0 4px 12px rgba(28, 34, 41, 0.1);
+  --shadow-lg: 0 12px 32px rgba(28, 34, 41, 0.14);
+  --shadow-focus: 0 0 0 3px rgba(254, 215, 0, 0.45);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+}
+
+/* Logical-property container so RTL/LTR never need separate markup. */
+.vm-container {
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 640px) {
+  .vm-container {
+    padding-inline: 1.5rem;
+  }
+}
+
+/* Shared focus treatment: a brand-yellow ring, never the browser default. */
+.vm-focus-ring {
+  outline: none;
+}
+
+.vm-focus-ring:focus-visible {
+  box-shadow: var(--shadow-focus);
+}

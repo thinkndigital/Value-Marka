@@ -1,0 +1,1346 @@
+// Value Marka — Database Schema
+// This is the authoritative schema. See DATABASE.md for the narrative
+// version (entity relationships, the commission-resolution algorithm, the
+// ledger-derives-balances rule, and what Phase 1 actually migrates vs. what
+// is modeled for later phases).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 1. IDENTITY & RBAC
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  phone               String?   @unique
+  passwordHash        String
+  firstName           String
+  lastName             String
+  locale              String    @default("en")
+  status               UserStatus @default(ACTIVE)
+  emailVerifiedAt      DateTime?
+  phoneVerifiedAt      DateTime?
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  roles              UserRole[]
+  sessions           Session[]
+  addresses          Address[]
+  seller             Seller?
+  affiliate          Affiliate?
+  cart               Cart?
+  wishlist           Wishlist?
+  orders             Order[]
+  reviews            Review[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
+  referralCode       ReferralCode?
+  referredBy         Referral?           @relation("Referred")
+  referrals          Referral[]          @relation("Referrer")
+  sellerFollows      SellerFollow[]
+  couponUsages       CouponUsage[]
+  verificationTokens VerificationToken[]
+
+  @@index([status])
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  DEACTIVATED
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  key         String   @unique // SUPER_ADMIN, ADMIN, FINANCE, SELLER, ...
+  name        String
+  description String?
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  key         String  @unique // "products.read", "orders.refund", ...
+  description String?
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+/// A user can hold a role globally (sellerId null) or scoped to one seller
+/// (seller staff). One user can hold multiple roles (e.g. Customer + Affiliate).
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  sellerId  String?
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  seller Seller? @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, sellerId])
+}
+
+/// Database-backed session. The cookie only carries a signed session id;
+/// authorization state is always re-read from this table (spec: DAL pattern).
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  id         String                 @id @default(uuid())
+  userId     String
+  type       VerificationTokenType
+  tokenHash  String                 @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime               @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum VerificationTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  PHONE_VERIFICATION
+}
+
+/// Immutable record of every sensitive action (spec §36). Never updated,
+/// never deleted by application code.
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String?
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 2. LOCALIZATION & GLOBAL CONFIG (no hardcoded language/country/currency)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Direction {
+  LTR
+  RTL
+}
+
+model Language {
+  code       String    @id // "en", "ar"
+  name       String
+  nativeName String
+  direction  Direction @default(LTR)
+  isActive   Boolean   @default(true)
+}
+
+model Country {
+  code          String  @id // ISO 3166-1 alpha-2: JO, SA, AE, KW, QA, BH, OM, EG...
+  name          String
+  nameLocalized String?
+  currencyCode  String
+  defaultLocale String  @default("en")
+  timezone      String
+  phoneCode     String?
+  isActive      Boolean @default(true)
+
+  currency      Currency       @relation(fields: [currencyCode], references: [code])
+  taxRules      TaxRule[]
+  shippingZones ShippingZone[]
+  addresses     Address[]
+  sellers       Seller[]
+  warehouses    Warehouse[]
+}
+
+model Currency {
+  code          String  @id // "JOD", "SAR", "AED", "USD", ...
+  name          String
+  symbol        String
+  decimalDigits Int     @default(2)
+  isActive      Boolean @default(true)
+
+  countries         Country[]
+  exchangeRatesFrom ExchangeRate[] @relation("FromCurrency")
+  exchangeRatesTo   ExchangeRate[] @relation("ToCurrency")
+}
+
+/// Rate snapshots, never overwritten — historical orders reference the rate
+/// that was in effect at transaction time (spec §8).
+model ExchangeRate {
+  id          String   @id @default(uuid())
+  fromCode    String
+  toCode      String
+  rate        Decimal  @db.Decimal(18, 8)
+  effectiveAt DateTime @default(now())
+
+  from Currency @relation("FromCurrency", fields: [fromCode], references: [code])
+  to   Currency @relation("ToCurrency", fields: [toCode], references: [code])
+
+  @@unique([fromCode, toCode, effectiveAt])
+}
+
+enum TaxAppliesTo {
+  ALL
+  PRODUCT
+  SHIPPING
+}
+
+model TaxRule {
+  id          String       @id @default(uuid())
+  countryCode String
+  name        String
+  rate        Decimal      @db.Decimal(6, 4) // fraction, e.g. 0.1600 = 16%
+  appliesTo   TaxAppliesTo @default(ALL)
+  isActive    Boolean      @default(true)
+
+  country Country @relation(fields: [countryCode], references: [code])
+
+  @@index([countryCode])
+}
+
+/// Generic translation store so adding a language is a data change, not a
+/// migration. entityType/entityId point at any translatable row
+/// (Category, Product, CmsBlock, NavigationItem, ...).
+model Translation {
+  id         String @id @default(uuid())
+  entityType String
+  entityId   String
+  locale     String
+  field      String
+  value      String @db.Text
+
+  @@unique([entityType, entityId, locale, field])
+  @@index([entityType, entityId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 3. CATALOG
+// ─────────────────────────────────────────────────────────────────────────
+
+model Category {
+  id        String  @id @default(uuid())
+  slug      String  @unique
+  name      String
+  parentId  String?
+  imageUrl  String?
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  parent          Category?        @relation("CategoryTree", fields: [parentId], references: [id])
+  children        Category[]       @relation("CategoryTree")
+  products        Product[]
+  commissionRules CommissionRule[]
+
+  @@index([parentId])
+}
+
+model Brand {
+  id       String  @id @default(uuid())
+  slug     String  @unique
+  name     String
+  logoUrl  String?
+  isActive Boolean @default(true)
+
+  products Product[]
+}
+
+enum SellerStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+  REJECTED
+}
+
+model Seller {
+  id                 String       @id @default(uuid())
+  userId             String       @unique
+  storeSlug          String       @unique
+  storeName          String
+  legalName          String?
+  countryCode        String
+  status             SellerStatus @default(PENDING)
+  logoUrl            String?
+  bannerUrl          String?
+  description        String?      @db.Text
+  commissionOverride Decimal?     @db.Decimal(6, 4)
+  stripeAccountId    String?
+  paypalMerchantId   String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  user            User               @relation(fields: [userId], references: [id])
+  country         Country            @relation(fields: [countryCode], references: [code])
+  staff           UserRole[]
+  application     SellerApplication?
+  products        Product[]
+  warehouses      Warehouse[]
+  sellerOrders    SellerOrder[]
+  payouts         Payout[]
+  commissionRules CommissionRule[]
+  suppliers       Supplier[]
+  purchaseOrders  PurchaseOrder[]
+  expenses        Expense[]
+  coupons         Coupon[]
+  followers       SellerFollow[]
+  reviews         Review[]
+
+  @@index([status])
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model SellerApplication {
+  id              String            @id @default(uuid())
+  sellerId        String            @unique
+  businessType    String
+  taxId           String?
+  documents       Json?
+  status          ApplicationStatus @default(SUBMITTED)
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  submittedAt     DateTime          @default(now())
+
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+}
+
+enum ProductType {
+  SIMPLE
+  VARIABLE
+  BUNDLE
+  DIGITAL
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Product {
+  id               String        @id @default(uuid())
+  sellerId         String
+  categoryId       String
+  brandId          String?
+  slug             String        @unique
+  sku              String
+  barcode          String?
+  name             String
+  shortDescription String?
+  description      String?       @db.Text
+  type             ProductType   @default(SIMPLE)
+  status           ProductStatus @default(DRAFT)
+  price            Decimal       @db.Decimal(14, 4)
+  compareAtPrice   Decimal?      @db.Decimal(14, 4)
+  costPrice        Decimal       @db.Decimal(14, 4)
+  currencyCode     String
+  weightGrams      Int?
+  seoTitle         String?
+  seoDescription   String?
+  seoKeywords      String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  seller             Seller                   @relation(fields: [sellerId], references: [id])
+  category           Category                 @relation(fields: [categoryId], references: [id])
+  brand              Brand?                   @relation(fields: [brandId], references: [id])
+  images             ProductImage[]
+  variants           ProductVariant[]
+  attributes         ProductAttributeValue[]
+  inventory          Inventory[]
+  reviews            Review[]
+  wishlistItems      WishlistItem[]
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+  commissionRules    CommissionRule[]
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@unique([sellerId, sku])
+  @@index([categoryId])
+  @@index([sellerId])
+  @@index([status])
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String
+  url       String
+  altText   String?
+  sortOrder Int     @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ProductVariant {
+  id          String  @id @default(uuid())
+  productId   String
+  sku         String
+  barcode     String?
+  optionsJson Json // e.g. {"color":"Red","size":"L"}
+  price       Decimal @db.Decimal(14, 4)
+  costPrice   Decimal @db.Decimal(14, 4)
+  weightGrams Int?
+  imageUrl    String?
+  isActive    Boolean @default(true)
+
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventory  Inventory[]
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+
+  @@unique([productId, sku])
+}
+
+model ProductAttributeValue {
+  id        String @id @default(uuid())
+  productId String
+  name      String // "Material"
+  value     String // "Cotton"
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+model Review {
+  id          String       @id @default(uuid())
+  productId   String
+  sellerId    String?
+  userId      String
+  orderItemId String?      @unique
+  rating      Int
+  title       String?
+  body        String?      @db.Text
+  status      ReviewStatus @default(PUBLISHED)
+  createdAt   DateTime     @default(now())
+
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller    Seller?    @relation(fields: [sellerId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id])
+
+  @@index([productId])
+}
+
+model SellerFollow {
+  userId    String
+  sellerId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@id([userId, sellerId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4. INVENTORY & SUPPLY CHAIN
+// ─────────────────────────────────────────────────────────────────────────
+
+model Warehouse {
+  id          String  @id @default(uuid())
+  sellerId    String
+  name        String
+  countryCode String
+  city        String
+  addressLine String?
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  seller         Seller          @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  country        Country         @relation(fields: [countryCode], references: [code])
+  inventory      Inventory[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([sellerId])
+}
+
+/// available stock = quantity - reserved. Never written directly — see
+/// InventoryMovement, which is the only writer (spec §11).
+model Inventory {
+  id                String   @id @default(uuid())
+  productId         String
+  variantId         String?
+  warehouseId       String
+  quantity          Int      @default(0)
+  reserved          Int      @default(0)
+  damaged           Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  updatedAt         DateTime @updatedAt
+
+  product   Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant?      @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse            @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  movements InventoryMovement[]
+
+  @@unique([productId, variantId, warehouseId])
+}
+
+enum InventoryMovementType {
+  PURCHASE
+  SALE
+  RETURN
+  ADJUSTMENT
+  DAMAGE
+  TRANSFER
+  RESERVATION
+  RELEASE
+}
+
+model InventoryMovement {
+  id            String                 @id @default(uuid())
+  inventoryId   String
+  type          InventoryMovementType
+  quantity      Int // signed delta
+  reason        String?
+  referenceType String?
+  referenceId   String?
+  actorId       String?
+  createdAt     DateTime               @default(now())
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryId])
+  @@index([referenceType, referenceId])
+}
+
+model Supplier {
+  id           String   @id @default(uuid())
+  sellerId     String
+  companyName  String
+  contactName  String?
+  email        String?
+  phone        String?
+  countryCode  String?
+  address      String?
+  paymentTerms String?
+  createdAt    DateTime @default(now())
+
+  seller         Seller          @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@index([sellerId])
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  sellerId      String
+  supplierId    String
+  warehouseId   String
+  status        PurchaseOrderStatus @default(DRAFT)
+  paymentStatus PaymentStatus       @default(UNPAID)
+  expectedAt    DateTime?
+  subtotal      Decimal             @db.Decimal(14, 4)
+  tax           Decimal             @default(0) @db.Decimal(14, 4)
+  shipping      Decimal             @default(0) @db.Decimal(14, 4)
+  total         Decimal             @db.Decimal(14, 4)
+  currencyCode  String
+  createdAt     DateTime            @default(now())
+
+  seller    Seller              @relation(fields: [sellerId], references: [id])
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id])
+  items     PurchaseOrderItem[]
+
+  @@index([sellerId])
+}
+
+model PurchaseOrderItem {
+  id               String  @id @default(uuid())
+  purchaseOrderId  String
+  productId        String
+  quantityOrdered  Int
+  quantityReceived Int     @default(0)
+  unitCost         Decimal @db.Decimal(14, 4)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+}
+
+enum ExpenseCategory {
+  MARKETING
+  SHIPPING
+  SALARIES
+  SOFTWARE
+  WAREHOUSE
+  RENT
+  PAYMENT_PROCESSING
+  REFUNDS
+  OPERATIONAL
+  OTHER
+}
+
+/// sellerId null = platform-level expense.
+model Expense {
+  id           String          @id @default(uuid())
+  sellerId     String?
+  category     ExpenseCategory
+  description  String?
+  amount       Decimal         @db.Decimal(14, 4)
+  currencyCode String
+  incurredAt   DateTime        @default(now())
+  createdAt    DateTime        @default(now())
+
+  seller Seller? @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 5. CUSTOMER COMMERCE (address, cart, wishlist, coupons)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Address {
+  id           String   @id @default(uuid())
+  userId       String
+  label        String?
+  fullName     String
+  phone        String
+  countryCode  String
+  city         String
+  addressLine1 String
+  addressLine2 String?
+  postalCode   String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country Country @relation(fields: [countryCode], references: [code])
+  orders  Order[]
+
+  @@index([userId])
+}
+
+model Cart {
+  id           String   @id @default(uuid())
+  userId       String?  @unique
+  guestToken   String?  @unique
+  currencyCode String   @default("USD")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  productId String
+  variantId String?
+  quantity  Int
+  createdAt DateTime @default(now())
+
+  cart    Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@unique([cartId, productId, variantId])
+}
+
+model Wishlist {
+  id     String @id @default(uuid())
+  userId String @unique
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items WishlistItem[]
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  wishlistId String
+  productId  String
+  createdAt  DateTime @default(now())
+
+  wishlist Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([wishlistId, productId])
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+/// sellerId null = platform-wide coupon.
+model Coupon {
+  id                String       @id @default(uuid())
+  sellerId          String?
+  code              String       @unique
+  type              CouponType
+  value             Decimal      @db.Decimal(14, 4)
+  minOrderTotal     Decimal?     @db.Decimal(14, 4)
+  maxDiscount       Decimal?     @db.Decimal(14, 4)
+  usageLimit        Int?
+  usageLimitPerUser Int?
+  startsAt          DateTime?
+  endsAt            DateTime?
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+
+  seller Seller?       @relation(fields: [sellerId], references: [id])
+  usages CouponUsage[]
+  orders Order[]
+}
+
+model CouponUsage {
+  id       String   @id @default(uuid())
+  couponId String
+  userId   String
+  orderId  String
+  usedAt   DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 6. ORDERS (multi-vendor: one Order, N SellerOrders)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  RETURN_REQUESTED
+  RETURNED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+/// Customer-facing order: one checkout, one payment. Fanned out into
+/// per-seller SellerOrder rows for fulfillment + financial allocation.
+model Order {
+  id            String      @id @default(uuid())
+  orderNumber   String      @unique
+  userId        String?
+  guestEmail    String?
+  addressId     String?
+  status        OrderStatus @default(PENDING)
+  currencyCode  String
+  subtotal      Decimal     @db.Decimal(14, 4)
+  discountTotal Decimal     @default(0) @db.Decimal(14, 4)
+  taxTotal      Decimal     @default(0) @db.Decimal(14, 4)
+  shippingTotal Decimal     @default(0) @db.Decimal(14, 4)
+  grandTotal    Decimal     @db.Decimal(14, 4)
+  couponId      String?
+  placedAt      DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user         User?         @relation(fields: [userId], references: [id])
+  address      Address?      @relation(fields: [addressId], references: [id])
+  coupon       Coupon?       @relation(fields: [couponId], references: [id])
+  sellerOrders SellerOrder[]
+  payments     Payment[]
+  couponUsages CouponUsage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// One row per seller represented in an Order. Sellers query only their own
+/// rows here — this table is the seller-isolation boundary for order data.
+model SellerOrder {
+  id               String      @id @default(uuid())
+  orderId          String
+  sellerId         String
+  status           OrderStatus @default(PENDING)
+  subtotal         Decimal     @db.Decimal(14, 4)
+  discountShare    Decimal     @default(0) @db.Decimal(14, 4)
+  taxShare         Decimal     @default(0) @db.Decimal(14, 4)
+  shippingShare    Decimal     @default(0) @db.Decimal(14, 4)
+  commissionAmount Decimal     @default(0) @db.Decimal(14, 4)
+  paymentFeeShare  Decimal     @default(0) @db.Decimal(14, 4)
+  payoutAmount     Decimal     @default(0) @db.Decimal(14, 4)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller    Seller      @relation(fields: [sellerId], references: [id])
+  items     OrderItem[]
+  refunds   Refund[]
+  shipments Shipment[]
+
+  @@index([sellerId])
+  @@index([orderId])
+}
+
+model OrderItem {
+  id             String   @id @default(uuid())
+  sellerOrderId  String
+  productId      String
+  variantId      String?
+  nameSnapshot   String
+  skuSnapshot    String
+  quantity       Int
+  unitPrice      Decimal  @db.Decimal(14, 4)
+  unitCostPrice  Decimal  @db.Decimal(14, 4)
+  discountAmount Decimal  @default(0) @db.Decimal(14, 4)
+  taxAmount      Decimal  @default(0) @db.Decimal(14, 4)
+  lineTotal      Decimal  @db.Decimal(14, 4)
+
+  sellerOrder SellerOrder     @relation(fields: [sellerOrderId], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [productId], references: [id])
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+  review      Review?
+}
+
+enum ShipmentStatus {
+  PENDING
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+}
+
+model Shipment {
+  id             String         @id @default(uuid())
+  sellerOrderId  String
+  carrier        String?
+  trackingNumber String?
+  status         ShipmentStatus @default(PENDING)
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+
+  sellerOrder SellerOrder @relation(fields: [sellerOrderId], references: [id], onDelete: Cascade)
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model Refund {
+  id            String       @id @default(uuid())
+  sellerOrderId String
+  amount        Decimal      @db.Decimal(14, 4)
+  reason        String?
+  status        RefundStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+
+  sellerOrder SellerOrder @relation(fields: [sellerOrderId], references: [id])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 7. PAYMENTS, COMMISSION & LEDGER
+// ─────────────────────────────────────────────────────────────────────────
+
+enum PaymentProviderType {
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  UNPAID
+  PAID
+}
+
+model Payment {
+  id           String              @id @default(uuid())
+  orderId      String
+  provider     PaymentProviderType
+  providerRef  String?
+  status       PaymentStatus       @default(PENDING)
+  amount       Decimal             @db.Decimal(14, 4)
+  currencyCode String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  order        Order                 @relation(fields: [orderId], references: [id])
+  transactions PaymentTransaction[]
+
+  @@index([orderId])
+}
+
+enum PaymentTransactionType {
+  AUTHORIZATION
+  CAPTURE
+  REFUND
+  CHARGEBACK
+  PAYOUT
+}
+
+model PaymentTransaction {
+  id          String                  @id @default(uuid())
+  paymentId   String
+  type        PaymentTransactionType
+  amount      Decimal                 @db.Decimal(14, 4)
+  providerRef String?
+  rawPayload  Json?
+  createdAt   DateTime                @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+enum CommissionScope {
+  GLOBAL
+  SELLER
+  CATEGORY
+  SELLER_CATEGORY
+  PRODUCT
+}
+
+/// Resolution order (most specific wins): PRODUCT > SELLER_CATEGORY >
+/// SELLER > CATEGORY > GLOBAL. See DATABASE.md for the resolution algorithm.
+model CommissionRule {
+  id         String          @id @default(uuid())
+  scope      CommissionScope
+  sellerId   String?
+  categoryId String?
+  productId  String?
+  rate       Decimal         @db.Decimal(6, 4)
+  priority   Int             @default(0)
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+
+  seller   Seller?   @relation(fields: [sellerId], references: [id])
+  category Category? @relation(fields: [categoryId], references: [id])
+  product  Product?  @relation(fields: [productId], references: [id])
+
+  @@index([scope, sellerId, categoryId, productId])
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  PAID
+  REJECTED
+  ON_HOLD
+}
+
+model Payout {
+  id           String       @id @default(uuid())
+  sellerId     String
+  amount       Decimal      @db.Decimal(14, 4)
+  currencyCode String
+  status       PayoutStatus @default(PENDING)
+  method       String?
+  providerRef  String?
+  requestedAt  DateTime     @default(now())
+  processedAt  DateTime?
+
+  seller Seller @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId])
+}
+
+enum LedgerEntryType {
+  SALE
+  COMMISSION
+  PAYMENT_FEE
+  REFUND
+  PAYOUT
+  EXPENSE
+  PURCHASE
+  TAX
+  SHIPPING
+  DISCOUNT
+  AFFILIATE_COMMISSION
+}
+
+/// Append-only. Balances (seller payable, platform revenue, affiliate
+/// payable, ...) are always SUM(amount) derived from this table, never a
+/// mutable column (spec §32).
+model LedgerEntry {
+  id            String          @id @default(uuid())
+  type          LedgerEntryType
+  amount        Decimal         @db.Decimal(14, 4) // signed: credit positive, debit negative
+  currencyCode  String
+  subjectType   String // "PLATFORM" | "SELLER" | "SUPPLIER" | "AFFILIATE"
+  subjectId     String?
+  referenceType String? // "Order" | "SellerOrder" | "Refund" | "Payout" | "Expense" | ...
+  referenceId   String?
+  description   String?
+  createdAt     DateTime        @default(now())
+
+  @@index([subjectType, subjectId])
+  @@index([referenceType, referenceId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 8. AFFILIATE & REFERRAL
+// ─────────────────────────────────────────────────────────────────────────
+
+enum AffiliateStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+model Affiliate {
+  id              String          @id @default(uuid())
+  userId          String          @unique
+  affiliateCode   String          @unique
+  commissionRate  Decimal?        @db.Decimal(6, 4)
+  fixedCommission Decimal?        @db.Decimal(14, 4)
+  cookieDays      Int             @default(30)
+  status          AffiliateStatus @default(PENDING)
+  createdAt       DateTime        @default(now())
+
+  user        User                   @relation(fields: [userId], references: [id])
+  links       AffiliateLink[]
+  clicks      AffiliateClick[]
+  conversions AffiliateConversion[]
+}
+
+model AffiliateLink {
+  id          String    @id @default(uuid())
+  affiliateId String
+  campaignId  String?
+  targetUrl   String
+  slug        String    @unique
+  createdAt   DateTime  @default(now())
+
+  affiliate Affiliate        @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  campaign  Campaign?        @relation(fields: [campaignId], references: [id])
+  clicks    AffiliateClick[]
+}
+
+model AffiliateClick {
+  id          String    @id @default(uuid())
+  affiliateId String
+  linkId      String
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  affiliate  Affiliate            @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  link       AffiliateLink        @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  conversion AffiliateConversion?
+
+  @@index([affiliateId])
+}
+
+enum AffiliateEventStage {
+  SESSION
+  ADD_TO_CART
+  CHECKOUT
+  PURCHASE
+  COMMISSION
+}
+
+model AffiliateConversion {
+  id               String              @id @default(uuid())
+  affiliateId      String
+  clickId          String?             @unique
+  orderId          String?
+  stage            AffiliateEventStage
+  commissionAmount Decimal?            @db.Decimal(14, 4)
+  createdAt        DateTime            @default(now())
+
+  affiliate Affiliate       @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  click     AffiliateClick? @relation(fields: [clickId], references: [id])
+}
+
+model ReferralCode {
+  userId String @id
+  code   String @unique
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum ReferralRewardType {
+  PERCENTAGE
+  FIXED
+}
+
+enum ReferralStatus {
+  PENDING
+  REWARDED
+  EXPIRED
+}
+
+model Referral {
+  id          String             @id @default(uuid())
+  referrerId  String
+  referredId  String             @unique
+  rewardType  ReferralRewardType
+  rewardValue Decimal            @db.Decimal(14, 4)
+  status      ReferralStatus     @default(PENDING)
+  createdAt   DateTime           @default(now())
+
+  referrer User @relation("Referrer", fields: [referrerId], references: [id])
+  referred User @relation("Referred", fields: [referredId], references: [id])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 9. MARKETING & CRM
+// ─────────────────────────────────────────────────────────────────────────
+
+enum CampaignType {
+  EMAIL
+  SMS
+  PUSH
+  AFFILIATE
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+model Campaign {
+  id          String         @id @default(uuid())
+  name        String
+  type        CampaignType
+  status      CampaignStatus @default(DRAFT)
+  segmentId   String?
+  subject     String?
+  content     String?        @db.Text
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime       @default(now())
+
+  segment        CustomerSegment? @relation(fields: [segmentId], references: [id])
+  affiliateLinks AffiliateLink[]
+  stats          CampaignStat?
+}
+
+model CampaignStat {
+  campaignId String  @id
+  sent       Int     @default(0)
+  delivered  Int     @default(0)
+  opened     Int     @default(0)
+  clicked    Int     @default(0)
+  converted  Int     @default(0)
+  revenue    Decimal @default(0) @db.Decimal(14, 4)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+/// definition is a server-evaluated rule set (e.g. { "lastOrderDaysAgo": {
+/// "gt": 90 } }) — membership is computed on demand, not stored per-user.
+model CustomerSegment {
+  id         String   @id @default(uuid())
+  name       String
+  definition Json
+  createdAt  DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 10. NOTIFICATIONS & WEBHOOKS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+model Notification {
+  id        String                @id @default(uuid())
+  userId    String
+  channel   NotificationChannel
+  type      String
+  title     String
+  body      String                @db.Text
+  status    NotificationStatus    @default(UNREAD)
+  priority  NotificationPriority  @default(NORMAL)
+  createdAt DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+/// Every inbound provider webhook is persisted before processing so
+/// processing is idempotent and replayable (spec §30).
+model WebhookEvent {
+  id          String        @id @default(uuid())
+  provider    String // "stripe" | "paypal"
+  eventId     String        @unique
+  eventType   String
+  payload     Json
+  status      WebhookStatus @default(RECEIVED)
+  receivedAt  DateTime      @default(now())
+  processedAt DateTime?
+  error       String?
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 11. CMS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum CmsStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model CmsPage {
+  id             String    @id @default(uuid())
+  slug           String    @unique
+  status         CmsStatus @default(DRAFT)
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  blocks CmsBlock[]
+}
+
+/// key namespaces homepage/landing sections (e.g. "homepage.hero"); content
+/// is a typed JSON payload the admin homepage builder edits (Phase 8).
+model CmsBlock {
+  id        String   @id @default(uuid())
+  pageId    String?
+  key       String
+  type      String
+  content   Json
+  locale    String   @default("en")
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+
+  page CmsPage? @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([key, locale])
+}
+
+model NavigationMenu {
+  id    String            @id @default(uuid())
+  key   String            @unique // "main", "footer", "mega_menu"
+  items NavigationItem[]
+}
+
+model NavigationItem {
+  id        String  @id @default(uuid())
+  menuId    String
+  parentId  String?
+  label     String
+  url       String
+  sortOrder Int     @default(0)
+
+  menu     NavigationMenu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  parent   NavigationItem?  @relation("NavTree", fields: [parentId], references: [id])
+  children NavigationItem[] @relation("NavTree")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 12. SHIPPING
+// ─────────────────────────────────────────────────────────────────────────
+
+model ShippingZone {
+  id          String   @id @default(uuid())
+  name        String
+  countryCode String
+  createdAt   DateTime @default(now())
+
+  country Country          @relation(fields: [countryCode], references: [code])
+  methods ShippingMethod[]
+}
+
+model ShippingMethod {
+  id               String   @id @default(uuid())
+  zoneId           String
+  sellerId         String?
+  name             String
+  price            Decimal  @db.Decimal(14, 4)
+  freeThreshold    Decimal? @db.Decimal(14, 4)
+  estimatedDaysMin Int?
+  estimatedDaysMax Int?
+  isActive         Boolean  @default(true)
+
+  zone ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+}
