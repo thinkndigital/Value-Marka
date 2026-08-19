@@ -23,6 +23,20 @@ export function listProductsForSeller(sellerId: string) {
   });
 }
 
+/** Customer-facing product detail lookup — only ever returns ACTIVE products. */
+export function getActiveProductBySlug(slug: string) {
+  return prisma.product.findFirst({
+    where: { slug, status: "ACTIVE" },
+    include: {
+      images: { orderBy: { sortOrder: "asc" } },
+      variants: { where: { isActive: true } },
+      category: { select: { name: true, slug: true } },
+      brand: { select: { name: true } },
+      seller: { select: { storeName: true, storeSlug: true } },
+    },
+  });
+}
+
 export async function getProductForSeller(sellerId: string, id: string) {
   const product = await prisma.product.findUnique({
     where: { id },

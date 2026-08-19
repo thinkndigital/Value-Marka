@@ -57,15 +57,52 @@ dependency of `@google-cloud/storage`'s `gaxios`, and `deepmerge-ts` (high,
 build-tool only) is transitive via the `prisma` CLI — both tracked, neither
 fixable without a breaking downgrade; revisit in Phase 10's security pass.
 
-## Phase 3 — Customer experience ⬜
+## Phase 3 — Customer experience ✅
 
-- Homepage rendering real `CmsBlock` content (bootstrapped with a minimal
-  default set of blocks, editable from Phase 8's builder once it exists —
-  until then, edited via seed/admin API, never hardcoded JSX).
-- Product search (Postgres full-text + trigram to start; swappable), PDP,
-  cart, address book.
-- Checkout: server-side total recomputation, guest + authenticated flows.
-- Customer account: orders, wishlist, addresses, reviews.
+- [x] Homepage rendering real `CmsBlock` content (`src/server/services/cms.ts`,
+      seeded via `prisma/seed.ts`'s `CMS_BLOCKS` — hero, featured categories,
+      new arrivals — editable from Phase 8's builder once it exists; until
+      then, edited via seed/admin API, never hardcoded JSX). `SiteHeader`/
+      `SiteFooter` extracted as shared shell components.
+- [x] Product search (`/search`): Postgres `ILIKE` substring match on
+      name/description, backed by a real trigram GIN index (migration
+      `20260819080100_product_search_trigram`) so it's index-accelerated,
+      not a sequential scan — category filter, price/newest sort,
+      pagination.
+- [x] PDP (`/product/[slug]`): images, stock-aware add-to-cart, wishlist
+      toggle, reviews (one per user per product, DB-enforced via
+      `Review_userId_productId_key`).
+- [x] Cart (`/cart`): guest (cookie token) and signed-in (`userId`) carts,
+      single-currency-per-cart guard, server-only total computation
+      (`computeCartTotals`) — the client never declares a price.
+- [x] Address book (`/account/addresses`): full CRUD, one default per user.
+- [x] Checkout (`/checkout` → `placeOrder` in
+      `src/server/services/checkout.ts`): re-validates stock and re-reads
+      product prices from the database at placement time (never trusts the
+      cart), fans a multi-seller cart out into one `Order` + one
+      `SellerOrder` per seller + `OrderItem` snapshots, reserves stock as a
+      real `InventoryMovement` (type `RESERVATION`, not a `SALE` decrement —
+      capture/decrement is Phase 5's job once payments exist), applies real
+      `TaxRule`/`ShippingMethod` rows when an admin has configured them for
+      the destination country (0 when none are configured — never a
+      fabricated rate). **Scoped to signed-in checkout only** for this
+      phase: `Address` is owned by a `User` row in the current schema, so a
+      true guest flow needs either an address snapshot on `Order` or a
+      shadow-account pattern — deferred rather than half-built; guests are
+      redirected to sign in before checkout.
+- [x] Customer account: orders (`/account/orders`, `/account/orders/[num]`),
+      wishlist (`/account/wishlist`), reviews (`/account/reviews`), all
+      under a shared `/account` layout with sidebar nav.
+- [x] Tests (`tests/cart/`, `tests/checkout/`, `tests/search/`): cart
+      totals/stock/currency guards, multi-seller order fan-out + stock
+      reservation + insufficient-stock rollback, search relevance/filter/
+      sort — all against the real database, no mocks.
+
+**Explicitly not in Phase 3**: guest checkout (see above), payment
+collection (orders are created `PENDING` and stay that way — Phase 5 wires
+up Stripe/PayPal and is the only phase allowed to move money or mark an
+order paid), the full `OrderStatus` fulfillment lifecycle and seller order
+dashboard (Phase 4).
 
 ## Phase 4 — Orders ⬜
 

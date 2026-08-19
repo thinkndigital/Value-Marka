@@ -11,7 +11,7 @@
  * Run with `npm run db:seed` (also runs automatically after
  * `prisma migrate dev` via prisma.config.ts).
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const connectionString = process.env.DATABASE_URL;
@@ -257,6 +257,80 @@ const COUNTRIES = [
   { code: "EG", name: "Egypt", nameLocalized: "مصر", currencyCode: "EGP", timezone: "Africa/Cairo", phoneCode: "+20" },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────
+// Homepage CMS blocks (spec §41) — real content rows, not hardcoded JSX.
+// Editable here until Phase 8's admin builder exists.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CMS_BLOCKS: {
+  key: string;
+  type: string;
+  locale: string;
+  sortOrder: number;
+  content: Prisma.InputJsonValue;
+}[] = [
+  {
+    key: "homepage.hero",
+    type: "hero",
+    locale: "en",
+    sortOrder: 0,
+    content: {
+      kicker: "Value Marka",
+      title: "Shop thousands of sellers, one marketplace.",
+      subtitle:
+        "Real stores, real stock, real prices — browse categories, compare sellers, and check out with confidence.",
+      ctaPrimaryLabel: "Browse categories",
+      ctaPrimaryHref: "/search",
+      ctaSecondaryLabel: "Sell on Value Marka",
+      ctaSecondaryHref: "/sell",
+    },
+  },
+  {
+    key: "homepage.hero",
+    type: "hero",
+    locale: "ar",
+    sortOrder: 0,
+    content: {
+      kicker: "فاليو ماركة",
+      title: "آلاف البائعين، سوق واحد.",
+      subtitle:
+        "متاجر حقيقية، مخزون حقيقي، أسعار حقيقية — تصفّح الأقسام، قارن بين البائعين، وأكمل طلبك بثقة.",
+      ctaPrimaryLabel: "تصفّح الأقسام",
+      ctaPrimaryHref: "/search",
+      ctaSecondaryLabel: "ابدأ البيع في فاليو ماركة",
+      ctaSecondaryHref: "/sell",
+    },
+  },
+  {
+    key: "homepage.featured_categories",
+    type: "category_grid",
+    locale: "en",
+    sortOrder: 1,
+    content: { limit: 8 },
+  },
+  {
+    key: "homepage.featured_categories",
+    type: "category_grid",
+    locale: "ar",
+    sortOrder: 1,
+    content: { limit: 8 },
+  },
+  {
+    key: "homepage.featured_products",
+    type: "product_grid",
+    locale: "en",
+    sortOrder: 2,
+    content: { limit: 8 },
+  },
+  {
+    key: "homepage.featured_products",
+    type: "product_grid",
+    locale: "ar",
+    sortOrder: 2,
+    content: { limit: 8 },
+  },
+];
+
 async function main() {
   console.log("Seeding permissions...");
   for (const key of ALL_PERMISSIONS) {
@@ -315,6 +389,29 @@ async function main() {
       update: country,
       create: country,
     });
+  }
+
+  console.log("Seeding homepage CMS blocks...");
+  for (const block of CMS_BLOCKS) {
+    const existing = await prisma.cmsBlock.findFirst({
+      where: { key: block.key, locale: block.locale, pageId: null },
+    });
+    if (existing) {
+      await prisma.cmsBlock.update({
+        where: { id: existing.id },
+        data: { type: block.type, sortOrder: block.sortOrder, content: block.content },
+      });
+    } else {
+      await prisma.cmsBlock.create({
+        data: {
+          key: block.key,
+          type: block.type,
+          locale: block.locale,
+          sortOrder: block.sortOrder,
+          content: block.content,
+        },
+      });
+    }
   }
 
   console.log("Seed complete.");

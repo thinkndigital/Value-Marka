@@ -19,7 +19,7 @@ export function DeleteButton({
   label = "Delete",
 }: {
   action: DeleteAction;
-  confirmMessage: string;
+  confirmMessage?: string;
   label?: string;
 }) {
   const [state, formAction, pending] = useActionState<DeleteState, FormData>(
@@ -31,7 +31,7 @@ export function DeleteButton({
     <form
       action={formAction}
       onSubmit={(event) => {
-        if (!confirm(confirmMessage)) {
+        if (confirmMessage && !confirm(confirmMessage)) {
           event.preventDefault();
         }
       }}

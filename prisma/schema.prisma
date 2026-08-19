@@ -472,6 +472,7 @@ model Review {
   user      User       @relation(fields: [userId], references: [id])
   orderItem OrderItem? @relation(fields: [orderItemId], references: [id])
 
+  @@unique([userId, productId])
   @@index([productId])
 }
 
