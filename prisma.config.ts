@@ -1,4 +1,4 @@
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 try {
   process.loadEnvFile(".env");
@@ -16,6 +16,8 @@ export default defineConfig({
     seed: "node --experimental-strip-types prisma/seed.ts",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // Prisma generate runs during builds where DATABASE_URL may not be present.
+    // Migrations still use DATABASE_URL when it is configured.
+    url: process.env.DATABASE_URL ?? "postgresql://build:build@localhost:5432/value_marka",
   },
 });
