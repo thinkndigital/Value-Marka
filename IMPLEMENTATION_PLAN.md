@@ -23,15 +23,39 @@ Status legend: ✅ done · 🚧 in progress · ⬜ not started.
 see phases below. Nothing here renders a number or a button that doesn't
 have a real handler behind it.
 
-## Phase 2 — Core marketplace ⬜
+## Phase 2 — Core marketplace ✅
 
-- Category/Brand admin CRUD.
-- Seller onboarding flow (`SellerApplication`) + admin approval, using the
-  Phase 1 RBAC (`SELLER_MANAGER` role) and audit log.
-- Product CRUD (simple + variable), image upload via the GCS storage
-  abstraction, bulk CSV import/export with validated error reporting.
-- Warehouse + `Inventory`/`InventoryMovement` wired to product create/adjust.
-- Seller store page (`/store/{slug}`).
+- [x] Category/Brand admin CRUD (`/admin/categories`, `/admin/brands`),
+      RBAC-gated, audit logged, delete blocked while children/products
+      reference the row.
+- [x] Seller onboarding (`/sell`) + admin approval queue (`/admin/sellers`):
+      submitting an application creates a `Seller` + `SellerApplication`
+      (PENDING); approval assigns the seeded `SELLER` role scoped to that
+      seller and is reflected immediately in the applicant's own UI.
+- [x] File storage abstraction (`src/server/storage/`) — local-disk adapter
+      for dev, GCS adapter for production — backing category/brand/product
+      image uploads with mime/size validation.
+- [x] Warehouses (seller-managed) + `Inventory`/`InventoryMovement` service
+      (`src/server/services/inventory.ts`) — the only code path allowed to
+      write stock, always paired with a movement row. A partial unique DB
+      index enforces one Inventory row per product+warehouse when there's
+      no variant (Postgres doesn't enforce this via NULL columns alone —
+      see migration `20260819072807_inventory_partial_unique_no_variant`).
+- [x] Product CRUD for sellers (`/seller/products`) — SIMPLE products only
+      this phase (variants are schema-ready, not yet built in the UI);
+      creation posts opening stock as a real `PURCHASE` movement; seller
+      isolation enforced via `assertSellerOwns` and covered by tests.
+- [x] Seller store page (`/store/[slug]`), public, active products only.
+- [x] Product CSV import/export, per-row validation with a partial-success
+      error report (one bad row doesn't discard the batch).
+
+**Explicitly not in Phase 2**: product variants/bundles, purchase
+orders/suppliers, order placement (a store page lists products but has no
+cart/checkout yet — that's Phase 3/4). Known accepted risk: `uuid <11.1.1`
+(moderate, no attacker-controlled input in our usage) is a transitive
+dependency of `@google-cloud/storage`'s `gaxios`, and `deepmerge-ts` (high,
+build-tool only) is transitive via the `prisma` CLI — both tracked, neither
+fixable without a breaking downgrade; revisit in Phase 10's security pass.
 
 ## Phase 3 — Customer experience ⬜
 

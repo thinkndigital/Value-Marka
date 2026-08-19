@@ -18,6 +18,9 @@ export default async function HomePage() {
         <div className="vm-container flex h-16 items-center justify-between">
           <Logo />
           <nav className="flex items-center gap-4">
+            <Link href="/sell" className="text-sm font-medium text-text-secondary hover:text-text-primary">
+              {tNav("sell")}
+            </Link>
             <LocaleSwitcher />
             {user ? (
               <Button href="/account" variant="secondary" size="sm">

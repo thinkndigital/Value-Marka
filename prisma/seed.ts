@@ -53,6 +53,7 @@ const PERMISSIONS: Record<string, string> = Object.fromEntries(
     "orders.update",
     "orders.refund",
     // Inventory & supply chain
+    ...crud("warehouses"),
     ...crud("inventory"),
     ...crud("suppliers"),
     ...crud("purchaseOrders"),
@@ -165,6 +166,7 @@ const ROLES: {
     description: "Warehouses, stock movements, and purchasing.",
     permissions: [
       "products.read",
+      ...crud("warehouses"),
       ...crud("inventory"),
       ...crud("suppliers"),
       ...crud("purchaseOrders"),
@@ -196,6 +198,7 @@ const ROLES: {
       ...crud("products"),
       "orders.read",
       "orders.update",
+      ...crud("warehouses"),
       "inventory.read",
       "inventory.update",
       "payouts.read",

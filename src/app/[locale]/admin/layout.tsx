@@ -1,0 +1,47 @@
+import { Logo } from "@/components/Logo";
+import { Link } from "@/i18n/navigation";
+import { requireUser } from "@/server/auth/guards";
+
+const NAV = [
+  { href: "/admin/sellers", label: "Sellers" },
+  { href: "/admin/categories", label: "Categories" },
+  { href: "/admin/brands", label: "Brands" },
+];
+
+export default async function AdminLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  await requireUser(locale);
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b border-border-default bg-bg-surface">
+        <div className="vm-container flex h-16 items-center gap-8">
+          <Link href="/">
+            <Logo />
+          </Link>
+          <span className="rounded-pill bg-navy-600 px-2.5 py-1 text-xs font-semibold text-white">
+            Admin
+          </span>
+          <nav className="flex items-center gap-5 text-sm font-medium text-text-secondary">
+            {NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="hover:text-text-primary"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+      <main className="flex-1 bg-bg-page">{children}</main>
+    </div>
+  );
+}

@@ -234,14 +234,18 @@ possible real model for Phase 1; provider-specific rate shopping (Aramex,
 DHL, SMSA, ...) is an adapter layer added in a later phase that computes a
 `ShippingMethod`-shaped quote at checkout time rather than a new table shape.
 
-## 13. What Phase 1 actually uses
+## 13. What's actually wired up so far
 
-Phase 1's code (auth, RBAC) only touches `User`, `Role`, `Permission`,
-`RolePermission`, `UserRole`, `Session`, `AuditLog`. Every other model above
-is migrated (so the database is the real, complete shape from day one — no
-"add the column later" churn) but has no reads/writes yet until its owning
-phase in `IMPLEMENTATION_PLAN.md` is built. An empty table is not fake data;
-a UI that reads a table and renders numbers that were never written to it
+Phase 1 (auth, RBAC) touches `User`, `Role`, `Permission`, `RolePermission`,
+`UserRole`, `Session`, `AuditLog`. Phase 2 (core marketplace) adds real
+reads/writes against `Category`, `Brand`, `Seller`, `SellerApplication`,
+`Warehouse`, `Product`, `ProductImage`, `Inventory`, `InventoryMovement`,
+plus `Country`/`Currency` as reference data for seller/product forms.
+Every other model above is migrated (so the database is the real, complete
+shape from day one — no "add the column later" churn) but has no
+reads/writes yet until its owning phase in `IMPLEMENTATION_PLAN.md` is
+built. An empty table is not fake data; a UI that reads a table and renders
+numbers that were never written to it
 would be.
 
 ## 14. Conventions

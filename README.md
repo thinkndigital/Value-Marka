@@ -45,7 +45,7 @@ openssl rand -base64 32
 | `npm run db:seed` | Seed roles/permissions + language/currency/country reference data |
 | `npm run db:studio` | Prisma Studio |
 
-## What's here (Phase 1)
+## What's here (Phases 1–2)
 
 - The full relational schema for the marketplace, migrated into Postgres —
   see `prisma/schema.prisma` and [DATABASE.md](./DATABASE.md).
@@ -56,27 +56,38 @@ openssl rand -base64 32
 - The Value Marka design system as Tailwind v4 tokens plus a rendered
   component library at `/style-guide`.
 - English/Arabic routing with RTL support (`next-intl`).
+- Category/brand catalog admin (`/admin/categories`, `/admin/brands`).
+- Seller onboarding + admin approval (`/sell`, `/admin/sellers`).
+- Seller product CRUD with image upload, warehouses, and inventory tracked
+  through an immutable movement log (`/seller/products`, `/seller/warehouses`).
+- A public seller store page (`/store/[slug]`) and product CSV import/export.
 
-Catalog, orders, payments, CMS and everything else in the spec are later
-phases — see [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md). Nothing in
-this codebase renders placeholder or mocked data for a feature that isn't
-built yet.
+Orders, payments, CMS and everything else in the spec are later phases —
+see [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md). Nothing in this
+codebase renders placeholder or mocked data for a feature that isn't built
+yet.
 
 ## Project structure
 
 ```
 prisma/                  schema.prisma, migrations, seed.ts
 src/
-  app/[locale]/           App Router pages (locale-prefixed)
+  app/[locale]/           App Router pages (locale-prefixed: admin/, seller/,
+                          store/[slug], sell, style-guide, ...)
+  app/api/                Route Handlers (e.g. seller product CSV export)
   components/ui/          Design-system primitives (Button, Card, Input, ...)
-  components/auth/        Auth forms
+  components/{admin,seller,auth}/  Feature-specific client components
   i18n/                   next-intl routing/navigation/request config
   messages/                en.json / ar.json
   server/
-    auth/                 sessions, password hashing, DAL, server actions
-    db.ts                 Prisma client (driver adapter: @prisma/adapter-pg)
-    rbac.ts                permission resolution + guards
-    audit.ts               audit log writer
+    auth/                 sessions, password hashing, DAL, guards
+    services/              domain logic (categories, brands, sellers,
+                            warehouses, inventory, products, product-csv)
+    {catalog,sellers,products,warehouses}/actions.ts  Server Actions
+    storage/                local-disk / GCS upload adapters
+    db.ts                  Prisma client (driver adapter: @prisma/adapter-pg)
+    rbac.ts                 permission resolution + seller-isolation guards
+    audit.ts                audit log writer
   proxy.ts                 route protection + locale routing (Next 16 renamed
                             middleware.ts → proxy.ts)
 ```
