@@ -104,13 +104,53 @@ up Stripe/PayPal and is the only phase allowed to move money or mark an
 order paid), the full `OrderStatus` fulfillment lifecycle and seller order
 dashboard (Phase 4).
 
-## Phase 4 — Orders ⬜
+## Phase 4 — Orders ✅
 
-- Full order lifecycle state machine (`OrderStatus`), multi-seller
-  `SellerOrder` fan-out and allocation (`DATABASE.md` §5).
-- Seller order dashboard, strictly scoped to the seller's own `SellerOrder`
-  rows (isolation tests required before merge).
-- Returns/refunds workflow.
+- [x] Full order lifecycle state machine (`src/server/services/orders.ts`):
+      `SellerOrder.status` is the real fulfillment state
+      (PENDING→CONFIRMED→PROCESSING→PACKED→SHIPPED→OUT_FOR_DELIVERY→
+      DELIVERED, plus CANCELLED and the return branch), enforced by an
+      explicit transition table — illegal jumps (e.g. PENDING→SHIPPED) are
+      rejected. The parent `Order.status` has no lifecycle of its own; it's
+      recomputed as a deterministic aggregate of its `SellerOrder`s on every
+      transition (CANCELLED only once every seller portion is, otherwise the
+      least-advanced live seller portion — a multi-vendor order isn't
+      "shipped" to the customer until every seller has shipped their part).
+- [x] Inventory effects are real, not just a status label: DELIVERED
+      releases the checkout-time `RESERVATION` and applies an actual `SALE`
+      decrement (stock isn't truly sold until fulfilled); CANCELLED releases
+      the reservation with no stock change; RETURNED restocks via a `RETURN`
+      movement — all resolved per-warehouse from the original reservation's
+      `InventoryMovement` rows, so multi-warehouse splits restock to the
+      same warehouses they were taken from.
+- [x] Seller order dashboard (`/seller/orders`, `/seller/orders/[id]`):
+      status filter, per-status action buttons (confirm, process, pack,
+      ship with carrier/tracking, mark delivered, cancel, approve/reject
+      return, mark refunded), strictly scoped to the seller's own
+      `SellerOrder` rows via `assertSellerOwns` — a seller acting on another
+      seller's order id gets `ForbiddenError`, covered by a test.
+- [x] Returns/refunds workflow: customer requests a return on a delivered
+      item within a 14-day window (`/account/orders/[orderNumber]`); seller
+      approves (restocks + creates/updates a `Refund` row) or rejects
+      (reverts to DELIVERED); seller marks a refund `COMPLETED` once settled
+      outside the system (no payment capture exists yet — see below).
+- [x] Customer-initiated cancellation, correctly partial on a multi-seller
+      order: only the `SellerOrder`s that haven't progressed past PACKED are
+      cancelled; a seller already shipping their portion is left alone, and
+      the response reports how many of the customer's seller-shipments were
+      actually cancelled.
+- [x] Tests (`tests/orders/orders.test.ts`): illegal transitions rejected,
+      cross-seller isolation, the full happy path with the aggregate-status
+      and inventory assertions above, partial cancellation, and the full
+      return → restock → refund flow — all against the real database.
+
+**Explicitly not in Phase 4**: payment collection (orders still carry no
+`Payment` row and stay effectively "awaiting payment" per Phase 3's scoping
+note — a `Refund` here records a business decision, not a reversed charge,
+since there's no charge yet; Phase 5 is the only phase allowed to move
+money), commission/payout calculation (`SellerOrder.commissionAmount`/
+`.payoutAmount` stay at their default 0 until Phase 5's commission engine
+runs), `LedgerEntry` (Phase 6).
 
 ## Phase 5 — Payments ⬜
 

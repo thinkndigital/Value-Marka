@@ -5,6 +5,7 @@ import { requireApprovedSeller } from "@/server/auth/seller-guard";
 const NAV = [
   { href: "/seller", label: "Overview" },
   { href: "/seller/products", label: "Products" },
+  { href: "/seller/orders", label: "Orders" },
   { href: "/seller/warehouses", label: "Warehouses" },
 ];
 

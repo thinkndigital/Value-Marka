@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
@@ -38,6 +38,16 @@ export function CheckoutForm({
     placeOrderAction,
     {},
   );
+
+  // Re-sync when the address list changes underneath us — most notably
+  // right after adding the very first address inline (revalidatePath
+  // refreshes `addresses` without remounting this component, so the
+  // useState above never re-runs its initializer on its own).
+  useEffect(() => {
+    if (selected && addresses.some((a) => a.id === selected)) return;
+    setSelected(addresses.find((a) => a.isDefault)?.id ?? addresses[0]?.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses]);
 
   return (
     <div className="flex flex-col gap-4">

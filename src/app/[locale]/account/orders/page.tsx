@@ -3,7 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { requireUser } from "@/server/auth/guards";
 import { listOrdersForUser } from "@/server/services/checkout";
 import { Card, CardBody } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export default async function OrdersPage({
@@ -45,7 +45,7 @@ export default async function OrdersPage({
                     <span className="font-display font-bold text-text-primary">
                       {order.currencyCode} {order.grandTotal.toString()}
                     </span>
-                    <Badge variant="neutral">{order.status}</Badge>
+                    <OrderStatusBadge status={order.status} />
                   </div>
                 </CardBody>
               </Card>

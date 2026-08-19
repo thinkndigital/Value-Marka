@@ -3,7 +3,11 @@ import { getTranslations } from "next-intl/server";
 import { requireUser } from "@/server/auth/guards";
 import { getOrderForUser, CheckoutError } from "@/server/services/checkout";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { OrderStatusBadge } from "@/components/OrderStatusBadge";
+import { CancelOrderButton } from "@/components/CancelOrderButton";
+import { ReturnRequestForm } from "@/components/ReturnRequestForm";
+
+const CANCELLABLE_ORDER_STATUSES = ["PENDING", "CONFIRMED", "PROCESSING", "PACKED"];
 
 export default async function OrderDetailPage({
   params,
@@ -34,7 +38,12 @@ export default async function OrderDetailPage({
             })}
           </p>
         </div>
-        <Badge variant="neutral">{order.status}</Badge>
+        <div className="flex items-center gap-3">
+          <OrderStatusBadge status={order.status} />
+          {CANCELLABLE_ORDER_STATUSES.includes(order.status) ? (
+            <CancelOrderButton orderNumber={order.orderNumber} />
+          ) : null}
+        </div>
       </div>
 
       {order.address ? (
@@ -64,7 +73,7 @@ export default async function OrderDetailPage({
             <p className="font-display text-sm font-bold text-text-primary">
               {t("soldBy", { storeName: sellerOrder.seller.storeName })}
             </p>
-            <Badge variant="neutral">{sellerOrder.status}</Badge>
+            <OrderStatusBadge status={sellerOrder.status} />
           </CardHeader>
           <CardBody className="flex flex-col gap-2">
             {sellerOrder.items.map((item) => (
@@ -77,6 +86,11 @@ export default async function OrderDetailPage({
                 </span>
               </div>
             ))}
+            {sellerOrder.status === "DELIVERED" ? (
+              <div className="mt-2 border-t border-border-default pt-3">
+                <ReturnRequestForm orderNumber={order.orderNumber} sellerOrderId={sellerOrder.id} />
+              </div>
+            ) : null}
           </CardBody>
         </Card>
       ))}
