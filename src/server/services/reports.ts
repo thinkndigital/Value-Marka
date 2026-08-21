@@ -31,12 +31,12 @@ async function sumLedger(where: Prisma.LedgerEntryWhereInput): Promise<number> {
   return Number(result._sum.amount ?? 0);
 }
 
-function dateFilter(range: DateRange): Prisma.DateTimeFilter | undefined {
+export function dateFilter(range: DateRange): Prisma.DateTimeFilter | undefined {
   if (!range.from && !range.to) return undefined;
   return { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) };
 }
 
-async function computeCogs(sellerId: string | undefined, currencyCode: string, range: DateRange) {
+export async function computeCogs(sellerId: string | undefined, currencyCode: string, range: DateRange) {
   const items = await prisma.orderItem.findMany({
     where: {
       sellerOrder: {

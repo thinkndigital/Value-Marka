@@ -399,12 +399,54 @@ body text; added a footer link from `/admin/cms/navigation` and watched it
 render in the site footer; and set a Category name override from
 `/admin/cms/translations`.
 
-## Phase 9 — Analytics ⬜
+## Phase 9 — Analytics ✅
 
-- Admin dashboard: sales, profit, inventory turnover, seller GMV, campaign
-  ROI — all computed from `LedgerEntry`/`Order`/`InventoryMovement`, never
-  a cached "fake" number.
-- Seller analytics scoped to their own data.
+- [x] Analytics service (`src/server/services/analytics.ts`), all computed
+      live from `LedgerEntry`/`OrderItem`/`Inventory` — nothing cached:
+  - `getSalesTrend` — daily gross sales bucketed from real `SALE` ledger
+    entries (posted at capture time), scoped to one seller or
+    platform-wide; `orderCount` counts distinct `SellerOrder`s per day.
+  - `getInventoryTurnover` — period COGS ÷ *current* inventory value.
+    Documented as an approximation rather than a true beginning/ending
+    average: the schema has no historical stock-value snapshots, so this
+    is a real, honestly-labeled limitation rather than a fabricated
+    number.
+  - `getSellerGmvLeaderboard` — ranks sellers by real `SALE` ledger totals.
+  - `getTopProductsBySeller` — revenue/quantity aggregated from real
+    delivered `OrderItem` rows.
+  - `getCouponPerformance` / `getAffiliatePerformance` — redemption counts,
+    discount/commission paid, and order revenue for orders that actually
+    used a coupon or arrived via an affiliate conversion. Deliberately
+    reports only real totals and a plain revenue-per-dollar-spent ratio —
+    **not** a fabricated "ROI %", since a causal lift figure would need a
+    control group (orders that would have happened anyway) this platform
+    has no way to observe.
+  - `dateFilter` and `computeCogs` were promoted from Phase 6's
+    `reports.ts` to shared exports rather than duplicated.
+- [x] Admin dashboard (`/admin/analytics`): sales trend chart (a small
+      dependency-free inline-SVG line chart,
+      `src/components/admin/SalesTrendChart.tsx`), inventory turnover,
+      marketing performance (coupons + affiliates), and the seller GMV
+      leaderboard — currency/period picker matching the existing
+      `/admin/reports` UX pattern.
+- [x] Seller dashboard (`/seller/analytics`): the same sales-trend chart and
+      inventory turnover scoped to the seller's own data, plus a top-products
+      table.
+- [x] Tests (`tests/analytics/`): sales-trend day-bucketing and per-seller
+      scoping, inventory turnover arithmetic (including the null-ratio case
+      with no stock), GMV leaderboard ranking, top-products aggregation and
+      ordering, and coupon/affiliate performance — the two platform-wide
+      aggregate functions are asserted as a delta from a captured baseline
+      (the same pattern Phase 6's platform report test uses), since they
+      aren't scoped to a single seller/user id and the database is shared
+      with other test files.
+
+Confirmed working end-to-end in this environment via the browser: logged in
+as an admin and viewed `/admin/analytics` with a real sales-trend chart
+(reflecting actual ledger data accumulated during this session's testing),
+inventory turnover, marketing performance, and the GMV leaderboard;
+switched the period filter and confirmed the page re-fetched; logged in as
+a seller and confirmed `/seller/analytics` renders without error.
 
 ## Phase 10 — Production hardening ⬜
 
