@@ -12,6 +12,10 @@ const NAV = [
   { href: "/admin/affiliates", label: "Affiliates" },
   { href: "/admin/segments", label: "Segments" },
   { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/cms/homepage", label: "Homepage" },
+  { href: "/admin/cms/pages", label: "Pages" },
+  { href: "/admin/cms/navigation", label: "Navigation" },
+  { href: "/admin/cms/translations", label: "Translations" },
 ];
 
 export default async function AdminLayout({

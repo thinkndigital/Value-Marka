@@ -9,6 +9,7 @@ import {
   getHomepageHero,
   getFeaturedCategories,
   getNewArrivals,
+  getHomepageBanners,
 } from "@/server/services/cms";
 
 export default async function HomePage({
@@ -18,10 +19,11 @@ export default async function HomePage({
 }) {
   const { locale } = await params;
   const t = await getTranslations("Search");
-  const [hero, categories, products] = await Promise.all([
+  const [hero, categories, products, banners] = await Promise.all([
     getHomepageHero(locale),
     getFeaturedCategories(locale),
     getNewArrivals(locale),
+    getHomepageBanners(locale),
   ]);
 
   return (
@@ -46,6 +48,34 @@ export default async function HomePage({
                 </Button>
               </div>
             </div>
+          </section>
+        ) : null}
+
+        {banners.length > 0 ? (
+          <section className="vm-container flex flex-col gap-4 py-8 sm:flex-row">
+            {banners.map((banner) => (
+              <Link
+                key={banner.id}
+                href={banner.href}
+                className="vm-focus-ring flex flex-1 flex-col justify-end gap-1 overflow-hidden rounded-lg border border-border-default bg-bg-surface p-6 text-start transition-shadow hover:shadow-md"
+                style={
+                  banner.imageUrl
+                    ? {
+                        backgroundImage: `url(${banner.imageUrl})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }
+                    : undefined
+                }
+              >
+                <span className="font-display text-lg font-bold text-text-primary">
+                  {banner.headline}
+                </span>
+                {banner.subheadline ? (
+                  <span className="text-sm text-text-secondary">{banner.subheadline}</span>
+                ) : null}
+              </Link>
+            ))}
           </section>
         ) : null}
 

@@ -344,11 +344,60 @@ a customer, applied to the affiliate program, generated a referral link from
 `/admin/affiliates`, and confirmed `/admin/coupons` and `/admin/segments`
 still render correctly.
 
-## Phase 8 — Admin CMS ⬜
+## Phase 8 — Admin CMS ✅
 
-- Visual homepage/landing-page builder writing `CmsPage`/`CmsBlock`.
-- Navigation/mega-menu editor, banners, SEO metadata editor, translation
-  management UI over the `Translation` table.
+- [x] Homepage builder (`/admin/cms/homepage`, `src/server/services/cms.ts`):
+      real forms over the existing `CmsBlock` rows (hero content,
+      featured-categories/featured-products limits) plus a new `banner`
+      block type — admins can add/edit/reorder/hide/delete banners, each a
+      real `CmsBlock` row (`key: "homepage.banner"`). The homepage
+      (`src/app/[locale]/page.tsx`) renders active banners for real. Content
+      is edited per-locale via an `editLocale` selector (`en`/`ar`), backed
+      by `routing.locales` rather than hardcoded.
+- [x] Landing pages (`CmsPage`): admin CRUD (`/admin/cms/pages`) — slug, SEO
+      title/description, a plain-text body (rendered as paragraphs, not
+      raw HTML, so there's no unsanitized-HTML injection surface), and a
+      draft/published status. A public route (`/[locale]/page/[slug]`)
+      renders only `PUBLISHED` pages — confirmed a draft page 404s and a
+      published one doesn't — with `generateMetadata` pulling the real
+      `seoTitle`/`seoDescription`. Body content is stored per-locale as
+      `CmsBlock` rows (`key: "page.body"`), matching the homepage pattern,
+      with a same-page fallback to any available locale if the requested
+      one is missing.
+- [x] Footer navigation editor (`/admin/cms/navigation`,
+      `src/server/services/navigation.ts`): real CRUD over
+      `NavigationMenu`/`NavigationItem` (`key: "footer"`) — add/edit/
+      reorder/delete links. `SiteFooter` renders these real rows instead of
+      the previous single hardcoded style-guide link. (The main header's
+      nav is fixed app chrome — cart, account, sell — not a candidate for
+      CMS-driven mega-menu editing without a redesign, so this phase
+      deliberately scoped the navigation editor to the footer, where a
+      config-driven link list is a real, honest fit.)
+- [x] Translation management (`/admin/cms/translations`,
+      `src/server/services/translations.ts`): CRUD over the `Translation`
+      table, scoped to `entityType: "Category"`/`field: "name"` — the one
+      entity/field pair actually wired into a storefront read path
+      (`getFeaturedCategories` in `cms.ts` batch-resolves overrides in one
+      query rather than N+1, confirmed with a real seeded category that an
+      Arabic override applies to while the English view still shows the
+      base name). `TRANSLATABLE_ENTITY_TYPES` is deliberately kept to just
+      that one pair rather than exposing a picker for entity/field
+      combinations nothing reads yet — extending it means adding both the
+      admin option and the matching read-site resolution together, not
+      speculatively.
+- [x] Tests (`tests/cms/`): banner CRUD/reorder/active-filtering, CmsPage
+      draft/publish/unpublish visibility and per-locale body updates and
+      fallback, footer nav CRUD/reorder, and the translation batch-resolve
+      + `getFeaturedCategories` integration (including the delete path).
+
+Confirmed working end-to-end in this environment via the browser as an
+admin: edited the hero kicker and added a banner from
+`/admin/cms/homepage` and watched both show up on the live homepage;
+created a landing page, confirmed it 404s while a draft, published it from
+`/admin/cms/pages`, and loaded it publicly at `/page/[slug]` with the real
+body text; added a footer link from `/admin/cms/navigation` and watched it
+render in the site footer; and set a Category name override from
+`/admin/cms/translations`.
 
 ## Phase 9 — Analytics ⬜
 
