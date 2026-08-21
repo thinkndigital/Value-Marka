@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/server/db";
+import { DEFAULT_PAGE_SIZE, paginate } from "@/server/pagination";
 
 export interface CustomerProfile {
   userId: string;
@@ -48,12 +49,30 @@ export async function getCustomerProfile(userId: string): Promise<CustomerProfil
   };
 }
 
+const CUSTOMER_WHERE = { roles: { some: { role: { key: "CUSTOMER" as const } } } };
+
+/** Unbounded on purpose — evaluateSegment below needs every customer to check membership correctly, not just one page. */
 export function listCustomers() {
   return prisma.user.findMany({
-    where: { roles: { some: { role: { key: "CUSTOMER" } } } },
+    where: CUSTOMER_WHERE,
     orderBy: { createdAt: "desc" },
     select: { id: true, email: true, firstName: true, lastName: true, createdAt: true },
   });
+}
+
+/** Paginated variant for the /admin/customers listing UI. */
+export async function listCustomersPage(page = 1, pageSize = DEFAULT_PAGE_SIZE) {
+  const [items, total] = await Promise.all([
+    prisma.user.findMany({
+      where: CUSTOMER_WHERE,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: { id: true, email: true, firstName: true, lastName: true, createdAt: true },
+    }),
+    prisma.user.count({ where: CUSTOMER_WHERE }),
+  ]);
+  return paginate(items, total, page, pageSize);
 }
 
 type SegmentCondition =

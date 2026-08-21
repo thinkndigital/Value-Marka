@@ -5,18 +5,24 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination } from "@/components/ui/Pagination";
 import { StatusToggleButton } from "@/components/seller/StatusToggleButton";
 import { CsvImportForm } from "@/components/seller/CsvImportForm";
+import { parsePage } from "@/server/pagination";
 
 export default async function SellerProductsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { locale } = await params;
+  const { page: pageParam } = await searchParams;
   const { seller } = await requireApprovedSeller(locale);
-  const [products, warehouses] = await Promise.all([
-    listProductsForSeller(seller.id),
+  const page = parsePage(pageParam);
+  const [{ items: products, totalPages }, warehouses] = await Promise.all([
+    listProductsForSeller(seller.id, page),
     listWarehousesForSeller(seller.id),
   ]);
 
@@ -109,6 +115,8 @@ export default async function SellerProductsPage({
           </table>
         </Card>
       )}
+
+      <Pagination page={page} totalPages={totalPages} basePath="/seller/products" />
     </div>
   );
 }

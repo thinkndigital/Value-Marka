@@ -5,6 +5,7 @@ import { recordInventoryMovement } from "./inventory";
 import { assertSellerOwns } from "@/server/rbac";
 import { sendEmailNotification } from "@/server/notifications/send";
 import { shipmentEmail, refundEmail } from "@/server/notifications/templates";
+import { DEFAULT_PAGE_SIZE, paginate } from "@/server/pagination";
 
 export class OrderError extends Error {}
 
@@ -184,15 +185,27 @@ async function restockReturn(
   }
 }
 
-export function listSellerOrders(sellerId: string, status?: OrderStatus) {
-  return prisma.sellerOrder.findMany({
-    where: { sellerId, ...(status ? { status } : {}) },
-    orderBy: { createdAt: "desc" },
-    include: {
-      items: true,
-      order: { select: { orderNumber: true, currencyCode: true, placedAt: true } },
-    },
-  });
+export async function listSellerOrders(
+  sellerId: string,
+  status?: OrderStatus,
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE,
+) {
+  const where = { sellerId, ...(status ? { status } : {}) };
+  const [items, total] = await Promise.all([
+    prisma.sellerOrder.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        items: true,
+        order: { select: { orderNumber: true, currencyCode: true, placedAt: true } },
+      },
+    }),
+    prisma.sellerOrder.count({ where }),
+  ]);
+  return paginate(items, total, page, pageSize);
 }
 
 export async function getSellerOrderForSeller(sellerId: string, id: string) {

@@ -139,6 +139,29 @@ printf 'postgresql://valuemarka_app:%s@localhost/valuemarka?host=/cloudsql/%s' \
   | gcloud secrets create value-marka-database-url --data-file=-
 
 openssl rand -base64 32 | gcloud secrets create value-marka-session-secret --data-file=-
+
+# Required for multi-instance Cloud Run: without a stable key, a Server
+# Action closure (e.g. any admin/seller `.bind(null, id)` action) encrypted
+# by one instance can fail to decrypt on another — see .env.example.
+openssl rand -base64 32 | gcloud secrets create value-marka-actions-encryption-key --data-file=-
+```
+
+Once you're ready to enable the features each of these gates (see
+`.env.example` for the full list), the same pattern applies — create a
+secret, then add it to `--set-secrets` in step 4:
+
+```bash
+# Payments (Phase 5) — Stripe Connect + PayPal
+printf '%s' "$STRIPE_SECRET_KEY" | gcloud secrets create value-marka-stripe-secret-key --data-file=-
+printf '%s' "$STRIPE_WEBHOOK_SECRET" | gcloud secrets create value-marka-stripe-webhook-secret --data-file=-
+printf '%s' "$PAYPAL_CLIENT_SECRET" | gcloud secrets create value-marka-paypal-client-secret --data-file=-
+
+# Email/SMS (Phase 7) — pick one email + one SMS provider
+printf '%s' "$SMTP_PASSWORD" | gcloud secrets create value-marka-smtp-password --data-file=-
+printf '%s' "$SMS_API_SECRET" | gcloud secrets create value-marka-sms-api-secret --data-file=-
+
+# Abandoned-cart Cloud Scheduler job (Phase 7) — see section 4.3 below
+openssl rand -base64 32 | gcloud secrets create value-marka-cron-secret --data-file=-
 ```
 
 ## 2. Build the image
@@ -186,7 +209,7 @@ gcloud run deploy value-marka \
   --platform=managed \
   --service-account=value-marka-run@value-marka.iam.gserviceaccount.com \
   --add-cloudsql-instances=value-marka:me-central1:value-marka-db \
-  --set-secrets="DATABASE_URL=value-marka-database-url:latest,SESSION_SECRET=value-marka-session-secret:latest" \
+  --set-secrets="DATABASE_URL=value-marka-database-url:latest,SESSION_SECRET=value-marka-session-secret:latest,NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=value-marka-actions-encryption-key:latest" \
   --set-env-vars="GOOGLE_CLOUD_PROJECT_ID=value-marka,GOOGLE_CLOUD_STORAGE_BUCKET=value-marka-uploads,NODE_ENV=production" \
   --allow-unauthenticated \
   --min-instances=0 \
@@ -218,6 +241,26 @@ gcloud beta run domain-mappings create \
 ```
 Follow the DNS records it prints, then repeat step 4.1 with the real domain.
 
+### 4.3 Cloud Scheduler for the abandoned-cart recovery job
+
+`POST /api/cron/abandoned-carts` (`src/app/api/cron/abandoned-carts/route.ts`,
+Phase 7) is written to be triggered by Cloud Scheduler, not a process
+running inside the container — nothing calls it on its own:
+
+```bash
+gcloud scheduler jobs create http value-marka-abandoned-carts \
+  --location=me-central1 \
+  --schedule="0 */6 * * *" \
+  --uri="https://<the-service-url>/api/cron/abandoned-carts" \
+  --http-method=POST \
+  --headers="Authorization=Bearer ${CRON_SECRET}"
+```
+
+Use the same `CRON_SECRET` value stored in `value-marka-cron-secret`
+(section 1.6) — the route checks it and returns 401 otherwise. Adjust the
+cron expression to taste; every 6 hours is a reasonable default for a
+reminder email that shouldn't feel spammy.
+
 ## 5. Redeploying after future changes
 
 Every subsequent push is just steps 2 and 4 again (skip 1, and skip 3
@@ -229,7 +272,24 @@ gcloud builds submit --tag me-central1-docker.pkg.dev/value-marka/value-marka/ap
 gcloud run deploy value-marka --image=me-central1-docker.pkg.dev/value-marka/value-marka/app:latest --region=me-central1
 ```
 
-## 6. What this does not set up yet
+## 6. What this does set up as of Phase 10
+
+- **Structured logging**: `src/server/logger.ts` writes JSON lines
+  (`severity`/`message`/fields) to stdout/stderr; Cloud Run ingests
+  container stdout as Cloud Logging automatically and promotes those
+  fields — no logging SDK or extra credentials needed. Uncaught
+  server-side errors are captured by `src/instrumentation.ts`'s
+  `onRequestError` hook; uncaught client-side errors are logged from
+  `src/app/[locale]/error.tsx` / `src/app/global-error.tsx`.
+- **Security headers + CSP**: set via `next.config.ts` `headers()` — see
+  `SECURITY.md` for the policy and how to extend it if a future
+  integration needs a new external origin.
+- **IP-scoped rate limiting** on login/register (`src/server/auth/rateLimit.ts`,
+  DB-backed via the `RateLimitAttempt` table so it holds up across Cloud
+  Run's multiple instances), layered on top of the existing per-account
+  lockout from Phase 1.
+
+## 7. What this does not set up yet
 
 - **CI/CD**: deploys above are manual. A Cloud Build trigger on pushes to
   this branch (or `main`) is the natural next step — ask for it once
@@ -237,14 +297,17 @@ gcloud run deploy value-marka --image=me-central1-docker.pkg.dev/value-marka/val
 - **Staging environment**: spec §11 calls for separate dev/staging/prod.
   This guide provisions one (production) environment; repeat section 1
   with a `-staging` suffix on every resource name for a second one.
-- **Email/SMS/payment provider secrets**: not needed yet — nothing in
-  Phases 1–2 sends email/SMS or takes a payment. `.env.example` documents
-  the variables those integrations will need once their phases land.
-- **Monitoring/alerting**: Cloud Run ships basic request/error metrics and
-  logs to Cloud Logging automatically; nothing custom is wired up (that's
-  Phase 10).
+- **Error-tracking SDK (e.g. Sentry)**: `.env.example` documents
+  `SENTRY_DSN` as a placeholder — wiring `@sentry/nextjs` is a real,
+  fairly small addition once there's an actual DSN to send to; until then,
+  Cloud Logging (see above) is the honest, fully-functional baseline that
+  doesn't depend on a credential this environment doesn't have.
+- **Alerting**: Cloud Logging captures everything above, but nothing pages
+  anyone yet — a log-based alerting policy on `severity>=ERROR` is a
+  natural next step (`gcloud logging metrics create` +
+  `gcloud alpha monitoring policies create`).
 
-## 7. Cost note
+## 8. Cost note
 
 At this stage (`db-g1-small` Cloud SQL always-on, Cloud Run scaling to
 zero when idle), expect roughly $25–40/month, dominated by the always-on

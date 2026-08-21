@@ -54,7 +54,7 @@ export default async function ProductPage({
     <div className="flex min-h-screen flex-col">
       <SiteHeader locale={locale} />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <div className="vm-container flex flex-col gap-10 py-10">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             <div className="flex flex-col gap-3">

@@ -159,6 +159,22 @@ model AuditLog {
   @@index([actorId])
 }
 
+/// IP-scoped rate limiting for unauthenticated endpoints (login, register —
+/// spec §Phase 10 security hardening). Deliberately separate from AuditLog:
+/// this is bookkeeping for a counter, not an accountability record, and
+/// putting one attempt row per keystroke-adjacent request into the audit
+/// trail would bury the real audit history in noise. A background job or
+/// cron can periodically delete rows older than the rate-limit window;
+/// nothing reads rows outside that window, so leaving them is harmless
+/// until such a job exists.
+model RateLimitAttempt {
+  id        String   @id @default(uuid())
+  key       String // "<scope>:<identifier>", e.g. "login:203.0.113.5"
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 2. LOCALIZATION & GLOBAL CONFIG (no hardcoded language/country/currency)
 // ─────────────────────────────────────────────────────────────────────────

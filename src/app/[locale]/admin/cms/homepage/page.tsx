@@ -158,10 +158,12 @@ export default async function AdminHomepagePage({
                           <FormActionButton
                             action={reorderBannerAction.bind(null, banner.id, "up")}
                             label="↑"
+                            ariaLabel={`Move "${content.headline}" up`}
                           />
                           <FormActionButton
                             action={reorderBannerAction.bind(null, banner.id, "down")}
                             label="↓"
+                            ariaLabel={`Move "${content.headline}" down`}
                           />
                           <FormActionButton
                             action={toggleBannerAction.bind(null, banner.id)}

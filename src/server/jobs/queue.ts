@@ -1,4 +1,5 @@
 import "server-only";
+import { logger } from "@/server/logger";
 
 /**
  * Background job abstraction (ARCHITECTURE.md §10). No feature is allowed
@@ -62,14 +63,20 @@ export function enqueue<T extends JobName>(name: T, payload: JobPayloads[T]) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, payload }),
     }).catch((err) => {
-      console.error(`Failed to enqueue job "${name}" via Cloud Tasks handler:`, err);
+      logger.error(`Failed to enqueue job "${name}" via Cloud Tasks handler`, {
+        job: name,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
     return;
   }
 
   setImmediate(() => {
     runJob(name, payload).catch((err) => {
-      console.error(`Job "${name}" failed:`, err);
+      logger.error(`Job "${name}" failed`, {
+        job: name,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
   });
 }

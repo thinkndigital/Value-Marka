@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Link } from "@/i18n/navigation";
 import { listSellerApplications } from "@/server/services/sellers";
+import { Pagination } from "@/components/ui/Pagination";
+import { parsePage } from "@/server/pagination";
 
 const STATUS_VARIANT = {
   PENDING: "warning",
@@ -28,10 +30,10 @@ export default async function AdminSellersPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }) {
   const { locale } = await params;
-  const { status: statusParam } = await searchParams;
+  const { status: statusParam, page: pageParam } = await searchParams;
   const user = await requireUser(locale);
 
   if (!(await hasPermission(user.id, "sellers.read"))) {
@@ -42,8 +44,9 @@ export default async function AdminSellersPage({
     statusParam && ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"].includes(statusParam)
       ? (statusParam as SellerStatus)
       : "PENDING";
+  const page = parsePage(pageParam);
 
-  const sellers = await listSellerApplications(status);
+  const { items: sellers, totalPages } = await listSellerApplications(status, page);
 
   return (
     <div className="vm-container flex flex-col gap-6 py-10">
@@ -108,6 +111,8 @@ export default async function AdminSellersPage({
           </table>
         </Card>
       )}
+
+      <Pagination page={page} totalPages={totalPages} basePath="/admin/sellers" extraQuery={{ status }} />
     </div>
   );
 }

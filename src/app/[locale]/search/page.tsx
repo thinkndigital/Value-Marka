@@ -34,7 +34,7 @@ export default async function SearchPage({
     <div className="flex min-h-screen flex-col">
       <SiteHeader locale={locale} />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <div className="vm-container flex flex-col gap-6 py-10">
           <div>
             <h1 className="font-display text-2xl font-bold text-text-primary">

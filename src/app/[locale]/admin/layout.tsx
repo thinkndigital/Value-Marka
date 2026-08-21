@@ -1,5 +1,6 @@
 import { Logo } from "@/components/Logo";
 import { Link } from "@/i18n/navigation";
+import { SkipLink } from "@/components/SkipLink";
 import { requireUser } from "@/server/auth/guards";
 
 const NAV = [
@@ -31,6 +32,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
+      <SkipLink />
       <header className="border-b border-border-default bg-bg-surface">
         <div className="vm-container flex h-16 items-center gap-8">
           <Link href="/">
@@ -52,7 +54,7 @@ export default async function AdminLayout({
           </nav>
         </div>
       </header>
-      <main className="flex-1 bg-bg-page">{children}</main>
+      <main id="main-content" className="flex-1 bg-bg-page">{children}</main>
     </div>
   );
 }

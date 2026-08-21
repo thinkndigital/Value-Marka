@@ -4,23 +4,31 @@ import { prisma } from "@/server/db";
 import { assertSellerOwns } from "@/server/rbac";
 import { recordInventoryMovement, recordInventoryMovementStandalone } from "./inventory";
 import type { productSchema, stockAdjustmentSchema } from "@/server/validation/product";
+import { DEFAULT_PAGE_SIZE, paginate } from "@/server/pagination";
 
 export class ProductError extends Error {}
 
 type ProductInput = z.infer<typeof productSchema>;
 type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 
-export function listProductsForSeller(sellerId: string) {
-  return prisma.product.findMany({
-    where: { sellerId },
-    orderBy: { createdAt: "desc" },
-    include: {
-      images: { orderBy: { sortOrder: "asc" }, take: 1 },
-      category: { select: { name: true } },
-      brand: { select: { name: true } },
-      inventory: { select: { quantity: true, reserved: true } },
-    },
-  });
+export async function listProductsForSeller(sellerId: string, page = 1, pageSize = DEFAULT_PAGE_SIZE) {
+  const where = { sellerId };
+  const [items, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        images: { orderBy: { sortOrder: "asc" }, take: 1 },
+        category: { select: { name: true } },
+        brand: { select: { name: true } },
+        inventory: { select: { quantity: true, reserved: true } },
+      },
+    }),
+    prisma.product.count({ where }),
+  ]);
+  return paginate(items, total, page, pageSize);
 }
 
 /** Customer-facing product detail lookup — only ever returns ACTIVE products. */

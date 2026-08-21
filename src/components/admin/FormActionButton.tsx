@@ -13,17 +13,20 @@ type FormAction = (state: ActionState, formData: FormData) => Promise<ActionStat
 export function FormActionButton({
   action,
   label,
+  ariaLabel,
   variant = "outline",
 }: {
   action: FormAction;
   label: string;
+  /** For icon-like labels (e.g. "↑") that need a real accessible name for screen readers. */
+  ariaLabel?: string;
   variant?: ButtonVariant;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
 
   return (
     <form action={formAction} className="inline-flex flex-col items-end gap-1">
-      <Button type="submit" variant={variant} size="sm" loading={pending}>
+      <Button type="submit" variant={variant} size="sm" loading={pending} aria-label={ariaLabel}>
         {label}
       </Button>
       {state.error ? <p className="text-xs text-danger">{state.error}</p> : null}

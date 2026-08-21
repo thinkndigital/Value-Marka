@@ -30,7 +30,7 @@ export default async function HomePage({
     <div className="flex min-h-screen flex-col">
       <SiteHeader locale={locale} />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         {hero ? (
           <section className="border-b border-border-default bg-bg-surface">
             <div className="vm-container flex flex-col items-start gap-6 py-20">

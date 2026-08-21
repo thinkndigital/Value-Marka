@@ -5,6 +5,7 @@ import { prisma } from "@/server/db";
 import type { sellerApplicationSchema } from "@/server/validation/seller";
 import { sendEmailNotification } from "@/server/notifications/send";
 import { sellerApprovedEmail, sellerRejectedEmail } from "@/server/notifications/templates";
+import { DEFAULT_PAGE_SIZE, paginate } from "@/server/pagination";
 
 export class SellerError extends Error {}
 
@@ -49,15 +50,22 @@ export async function submitSellerApplication(userId: string, input: Application
   });
 }
 
-export function listSellerApplications(status?: SellerStatus) {
-  return prisma.seller.findMany({
-    where: status ? { status } : undefined,
-    orderBy: { createdAt: "desc" },
-    include: {
-      application: true,
-      user: { select: { firstName: true, lastName: true, email: true } },
-    },
-  });
+export async function listSellerApplications(status?: SellerStatus, page = 1, pageSize = DEFAULT_PAGE_SIZE) {
+  const where = status ? { status } : undefined;
+  const [items, total] = await Promise.all([
+    prisma.seller.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        application: true,
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
+    }),
+    prisma.seller.count({ where }),
+  ]);
+  return paginate(items, total, page, pageSize);
 }
 
 export function getSellerWithApplication(id: string) {

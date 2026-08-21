@@ -62,10 +62,12 @@ export default async function AdminNavigationPage({
                       <FormActionButton
                         action={reorderFooterNavItemAction.bind(null, item.id, "up")}
                         label="↑"
+                        ariaLabel={`Move "${item.label}" up`}
                       />
                       <FormActionButton
                         action={reorderFooterNavItemAction.bind(null, item.id, "down")}
                         label="↓"
+                        ariaLabel={`Move "${item.label}" down`}
                       />
                       <DeleteButton
                         action={deleteFooterNavItemAction.bind(null, item.id)}

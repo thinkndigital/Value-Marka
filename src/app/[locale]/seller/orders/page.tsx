@@ -5,6 +5,8 @@ import { listSellerOrders } from "@/server/services/orders";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
+import { Pagination } from "@/components/ui/Pagination";
+import { parsePage } from "@/server/pagination";
 
 const STATUS_FILTERS: OrderStatus[] = [
   "PENDING",
@@ -23,14 +25,15 @@ export default async function SellerOrdersPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }) {
   const { locale } = await params;
-  const { status } = await searchParams;
+  const { status, page: pageParam } = await searchParams;
   const { seller } = await requireApprovedSeller(locale);
 
   const validStatus = STATUS_FILTERS.includes(status as OrderStatus) ? (status as OrderStatus) : undefined;
-  const orders = await listSellerOrders(seller.id, validStatus);
+  const page = parsePage(pageParam);
+  const { items: orders, totalPages } = await listSellerOrders(seller.id, validStatus, page);
 
   return (
     <div className="vm-container flex flex-col gap-6 py-10">
@@ -90,6 +93,13 @@ export default async function SellerOrdersPage({
           ))}
         </div>
       )}
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        basePath="/seller/orders"
+        extraQuery={validStatus ? { status: validStatus } : {}}
+      />
     </div>
   );
 }

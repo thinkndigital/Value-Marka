@@ -1,23 +1,29 @@
 import { hasPermission } from "@/server/rbac";
 import { requireUser } from "@/server/auth/guards";
 import { Forbidden } from "@/components/Forbidden";
-import { listCustomers, getCustomerProfile } from "@/server/services/crm";
+import { listCustomersPage, getCustomerProfile } from "@/server/services/crm";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination } from "@/components/ui/Pagination";
+import { parsePage } from "@/server/pagination";
 
 export default async function AdminCustomersPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { locale } = await params;
+  const { page: pageParam } = await searchParams;
   const user = await requireUser(locale);
 
   if (!(await hasPermission(user.id, "customers.read"))) {
     return <Forbidden />;
   }
 
-  const customers = await listCustomers();
+  const page = parsePage(pageParam);
+  const { items: customers, totalPages } = await listCustomersPage(page);
   const profiles = await Promise.all(
     customers.map(async (customer) => ({
       customer,
@@ -75,6 +81,8 @@ export default async function AdminCustomersPage({
           ))}
         </div>
       )}
+
+      <Pagination page={page} totalPages={totalPages} basePath="/admin/customers" />
     </div>
   );
 }

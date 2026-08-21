@@ -448,16 +448,91 @@ inventory turnover, marketing performance, and the GMV leaderboard;
 switched the period filter and confirmed the page re-fetched; logged in as
 a seller and confirmed `/seller/analytics` renders without error.
 
-## Phase 10 — Production hardening ⬜
+## Phase 10 — Production hardening ✅
 
-- Security checklist pass (rate limiting, CSRF review, dependency audit,
-  secret rotation).
-- Performance pass (query indexes already in `schema.prisma`; add caching,
-  pagination, image optimization as real traffic patterns emerge).
-- Full test suite: seller isolation, commission math, ledger integrity,
-  webhook idempotency, RBAC.
-- Accessibility (WCAG 2.2 AA) pass, monitoring/logging wired to Cloud
-  Logging, GCP deployment runbook finalized.
+- [x] **Rate limiting** (`src/server/auth/rateLimit.ts`, new `RateLimitAttempt`
+      table/migration): IP-scoped, DB-backed (not in-memory — an in-memory
+      counter resets per Cloud Run instance and would be trivially bypassed
+      by hitting a different instance), layered on top of Phase 1's existing
+      per-account lockout. 20 login / 10 register attempts per IP per 15
+      minutes.
+- [x] **CSRF review**: no custom token machinery needed — every mutation in
+      this app is a Server Action, and Next.js's built-in `Origin`/`Host`
+      check already rejects cross-origin submissions. The two exceptions
+      (Stripe/PayPal webhook routes, which are plain Route Handlers hit by a
+      third party) already verify the provider's cryptographic signature
+      (Phase 5). Findings and the full picture: `SECURITY.md`.
+- [x] **HTTP security headers** (`next.config.ts` `headers()`): CSP,
+      `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+      `Permissions-Policy`, HSTS. Verified against a real
+      `next build && next start` with a Playwright console-error check
+      across storefront and admin pages — zero CSP violations.
+- [x] **Dependency audit** (`npm audit`): fixed the `uuid`/`gaxios`
+      moderate vulnerability via a `package.json` `overrides` pin (safe
+      because `gaxios` only calls the stable `uuid.v4()` API). Left the
+      `deepmerge-ts`/Prisma-CLI-only high vulnerability unfixed on purpose —
+      the only automatic fix downgrades Prisma to 6.x, a real breaking
+      change against this app's Prisma 7 driver-adapter architecture, for a
+      devDependency not reachable by any request this app serves. Reasoning
+      in `SECURITY.md`.
+- [x] **Found and fixed a real gap while researching CSRF**: production
+      deploys need a stable `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` — without
+      one, Cloud Run's multiple instances each generate their own random
+      key at boot, so a Server Action closure (this app binds a lot of
+      them, e.g. every admin/seller `someAction.bind(null, id)`) encrypted
+      by one instance can fail to decrypt on another. Added to
+      `.env.example` and `DEPLOYMENT.md`.
+- [x] **Pagination** (`src/server/pagination.ts`, `src/components/ui/Pagination.tsx`):
+      real `skip`/`take` + count-based pagination for the four listing
+      pages most likely to grow unbounded with real usage —
+      `/admin/sellers`, `/admin/customers`, `/seller/products`,
+      `/seller/orders`. `crm.ts`'s `listCustomers` (unbounded) is kept
+      separate from the new paginated `listCustomersPage`, since
+      `evaluateSegment` genuinely needs every customer to check segment
+      membership correctly, not one page of them.
+- [x] **Observability**: structured JSON logging to stdout
+      (`src/server/logger.ts`) — Cloud Run ingests container stdout as
+      Cloud Logging automatically and promotes `severity`/`message`
+      fields, so this is a real, fully-functional integration requiring no
+      SDK or credentials this sandbox doesn't have (unlike Sentry, whose
+      `SENTRY_DSN` stays a documented placeholder — see `DEPLOYMENT.md`
+      §6/§7). Wired into `src/instrumentation.ts`'s `onRequestError` hook
+      for server-side errors and new `error.tsx`/`global-error.tsx`
+      boundaries for client-side ones.
+- [x] **Accessibility (scoped pass, not a full WCAG 2.2 AA audit)**: a
+      skip-to-main-content link (`src/components/SkipLink.tsx`) wired into
+      `SiteHeader` and the admin/seller layouts' custom headers, with a
+      matching `id="main-content"` landmark added to every top-level
+      page's `<main>`; accessible names added to this session's icon-only
+      reorder buttons (↑/↓) via a new `FormActionButton` `ariaLabel` prop.
+      Existing baseline confirmed rather than re-built: every form field
+      already goes through the shared `Input` component, which requires a
+      real `label`; focus rings (`vm-focus-ring`) are already applied
+      throughout; `lang`/`dir` are already set correctly per locale in the
+      root layout. Full WCAG 2.2 AA conformance would need a proper axe/
+      screen-reader pass — not claimed here.
+- [x] **GCP deployment runbook finalized**: `DEPLOYMENT.md` updated with
+      the secrets Phases 5–7 actually need (Stripe/PayPal/SMTP/SMS/cron),
+      a new §4.3 for the Cloud Scheduler job the abandoned-cart recovery
+      route (Phase 7) needs to actually fire, and a new `SECURITY.md`
+      covering the full security posture and secret-rotation procedure.
+- [x] Tests (`tests/security/`, `tests/performance/`): rate-limit counting/
+      blocking/scoping-by-key behavior against the real `RateLimitAttempt`
+      table, and pagination correctness (page boundaries, disjoint/complete
+      coverage across pages, empty-page-past-the-end) against a real seeded
+      product set.
+
+Confirmed working end-to-end in this environment via the browser: security
+headers present on every response, the skip link and `#main-content`
+landmark render, and `/admin/sellers`/`/admin/customers` render correctly
+with the new pagination wiring in place.
+
+This closes the 10-phase build. All ten phases are code-complete and
+verified (lint/typecheck/build/tests green, browser-smoke-tested) as of
+this commit; the two things still blocked on the user's own action rather
+than more work here are: live Stripe/PayPal credentials (Phase 5) and the
+GCP Cloud Billing account needed to actually deploy (tracked separately,
+outside this phase list).
 
 ## Working rules for every phase
 

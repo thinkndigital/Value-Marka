@@ -28,7 +28,7 @@ export default async function AccountLayout({
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader locale={locale} />
-      <main className="flex-1 bg-bg-page">
+      <main id="main-content" className="flex-1 bg-bg-page">
         <div className="vm-container flex flex-col gap-8 py-10 md:flex-row">
           <nav className="flex shrink-0 gap-2 overflow-x-auto md:w-48 md:flex-col">
             {NAV.map((item) => (

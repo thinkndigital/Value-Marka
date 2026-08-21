@@ -32,7 +32,7 @@ export default async function CmsPageRoute({
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader locale={locale} />
-      <main className="flex-1 bg-bg-page">
+      <main id="main-content" className="flex-1 bg-bg-page">
         <div className="vm-container max-w-3xl py-12">
           <article className="flex flex-col gap-4">
             {paragraphs.map((paragraph, index) => (

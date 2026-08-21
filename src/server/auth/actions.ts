@@ -11,9 +11,12 @@ import { loginSchema, registerSchema } from "./schemas";
 import { sendEmailNotification } from "@/server/notifications/send";
 import { welcomeEmail } from "@/server/notifications/templates";
 import { recordReferral } from "@/server/services/referrals";
+import { checkRateLimit } from "./rateLimit";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS_PER_IP = 20;
+const MAX_REGISTER_ATTEMPTS_PER_IP = 10;
 
 export interface AuthFormState {
   errors?: Record<string, string[]>;
@@ -50,6 +53,14 @@ export async function registerAction(
 
   const { firstName, lastName, email, password } = parsed.data;
 
+  const meta = await requestMeta();
+  if (meta.ipAddress) {
+    const allowed = await checkRateLimit("register", meta.ipAddress, MAX_REGISTER_ATTEMPTS_PER_IP);
+    if (!allowed) {
+      return { formError: "Too many attempts. Please try again later." };
+    }
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { errors: { email: ["An account with this email already exists."] } };
@@ -65,7 +76,6 @@ export async function registerAction(
   }
 
   const passwordHash = await hashPassword(password);
-  const meta = await requestMeta();
 
   const user = await prisma.user.create({
     data: {
@@ -122,6 +132,13 @@ export async function loginAction(
   const { email, password } = parsed.data;
   const meta = await requestMeta();
   const genericError = { formError: "That email and password don't match our records." };
+
+  if (meta.ipAddress) {
+    const allowed = await checkRateLimit("login", meta.ipAddress, MAX_LOGIN_ATTEMPTS_PER_IP);
+    if (!allowed) {
+      return { formError: "Too many attempts. Please try again later." };
+    }
+  }
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
