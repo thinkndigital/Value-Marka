@@ -1,12 +1,14 @@
 "use server";
 
 import { redirect as redirectExternal } from "next/navigation";
+import { cookies } from "next/headers";
 import type { PaymentProviderType } from "@prisma/client";
 import { redirect } from "@/i18n/navigation";
 import { getCurrentUser } from "@/server/auth/dal";
 import { placeOrder, CheckoutError } from "@/server/services/checkout";
 import { initiateOnlinePayment, PaymentError } from "@/server/services/payments";
 import { PaymentProviderError } from "@/server/payments/PaymentProvider";
+import { AFFILIATE_COOKIE_ID, AFFILIATE_COOKIE_CLICK } from "@/server/affiliates/cookies";
 
 export interface CheckoutFormState {
   error?: string;
@@ -32,10 +34,22 @@ export async function placeOrderAction(
     ? (paymentMethod as PaymentProviderType)
     : null;
 
+  const couponCode = formData.get("couponCode");
+
+  const cookieStore = await cookies();
+  const affiliateId = cookieStore.get(AFFILIATE_COOKIE_ID)?.value;
+  const affiliateClickId = cookieStore.get(AFFILIATE_COOKIE_CLICK)?.value;
+
   let orderId: string;
   let orderNumber: string;
   try {
-    const order = await placeOrder(user.id, addressId);
+    const order = await placeOrder(user.id, addressId, {
+      couponCode: typeof couponCode === "string" && couponCode ? couponCode : undefined,
+      affiliateAttribution:
+        affiliateId && affiliateClickId
+          ? { affiliateId, clickId: affiliateClickId }
+          : undefined,
+    });
     orderId = order.id;
     orderNumber = order.orderNumber;
   } catch (err) {

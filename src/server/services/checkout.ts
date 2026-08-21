@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { recordInventoryMovement } from "./inventory";
+import { validateCoupon, recordCouponUsage, CouponError } from "./coupons";
+import { recordAffiliateConversion, type AffiliateAttribution } from "./affiliates";
+import { rewardReferralOnFirstOrder } from "./referrals";
+import { sendEmailNotification } from "@/server/notifications/send";
+import { orderConfirmationEmail } from "@/server/notifications/templates";
 
 export class CheckoutError extends Error {}
 
@@ -52,7 +57,12 @@ async function reserveStockForItem(
   }
 }
 
-export async function placeOrder(userId: string, addressId: string) {
+export interface PlaceOrderOptions {
+  couponCode?: string;
+  affiliateAttribution?: AffiliateAttribution;
+}
+
+export async function placeOrder(userId: string, addressId: string, options: PlaceOrderOptions = {}) {
   const address = await prisma.address.findUnique({ where: { id: addressId } });
   if (!address || address.userId !== userId) {
     throw new CheckoutError("Select a valid shipping address.");
@@ -96,13 +106,32 @@ export async function placeOrder(userId: string, addressId: string) {
     orderBy: { price: "asc" },
   });
   const cheapestMethod = shippingMethods[0];
-  const shippingTotal = cheapestMethod
+  let shippingTotal = cheapestMethod
     ? cheapestMethod.freeThreshold && subtotal >= Number(cheapestMethod.freeThreshold)
       ? 0
       : Number(cheapestMethod.price)
     : 0;
 
-  const grandTotal = Math.round((subtotal + taxTotal + shippingTotal) * 100) / 100;
+  let coupon: Awaited<ReturnType<typeof validateCoupon>> | null = null;
+  if (options.couponCode) {
+    try {
+      coupon = await validateCoupon(
+        options.couponCode,
+        userId,
+        cart.items.map((item) => ({
+          sellerId: item.product.sellerId,
+          lineTotal: Number(item.product.price) * item.quantity,
+        })),
+      );
+    } catch (err) {
+      if (err instanceof CouponError) throw new CheckoutError(err.message);
+      throw err;
+    }
+    if (coupon.freeShipping) shippingTotal = 0;
+  }
+  const discountTotal = coupon?.discountAmount ?? 0;
+
+  const grandTotal = Math.round((subtotal - discountTotal + taxTotal + shippingTotal) * 100) / 100;
   const currencyCode = cart.currencyCode;
 
   const bySeller = new Map<string, typeof cart.items>();
@@ -121,11 +150,17 @@ export async function placeOrder(userId: string, addressId: string) {
         status: "PENDING",
         currencyCode,
         subtotal,
+        discountTotal,
         taxTotal,
         shippingTotal,
         grandTotal,
+        couponId: coupon?.coupon.id,
       },
     });
+
+    if (coupon) {
+      await recordCouponUsage(tx, coupon.coupon.id, userId, created.id);
+    }
 
     for (const [sellerId, items] of bySeller) {
       const sellerSubtotal = items.reduce(
@@ -134,6 +169,17 @@ export async function placeOrder(userId: string, addressId: string) {
       );
       const sellerTaxShare =
         subtotal > 0 ? Math.round((taxTotal * (sellerSubtotal / subtotal)) * 100) / 100 : 0;
+      // A seller-scoped coupon's discount lands entirely on that seller;
+      // a platform-wide one is split proportionally, same as tax.
+      const sellerDiscountShare = !coupon
+        ? 0
+        : coupon.coupon.sellerId
+          ? coupon.coupon.sellerId === sellerId
+            ? discountTotal
+            : 0
+          : subtotal > 0
+            ? Math.round((discountTotal * (sellerSubtotal / subtotal)) * 100) / 100
+            : 0;
 
       const sellerOrder = await tx.sellerOrder.create({
         data: {
@@ -142,6 +188,7 @@ export async function placeOrder(userId: string, addressId: string) {
           status: "PENDING",
           subtotal: sellerSubtotal,
           taxShare: sellerTaxShare,
+          discountShare: sellerDiscountShare,
         },
       });
 
@@ -174,6 +221,30 @@ export async function placeOrder(userId: string, addressId: string) {
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
     return created;
+  });
+
+  if (options.affiliateAttribution) {
+    await recordAffiliateConversion(options.affiliateAttribution, order.id, subtotal, currencyCode);
+  }
+
+  const priorOrderCount = await prisma.order.count({ where: { userId, id: { not: order.id } } });
+  if (priorOrderCount === 0) {
+    await rewardReferralOnFirstOrder(userId);
+  }
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const confirmation = orderConfirmationEmail({
+    orderNumber: order.orderNumber,
+    items: cart.items.map((item) => ({ name: item.product.name, quantity: item.quantity })),
+    grandTotal: order.grandTotal.toString(),
+    currencyCode: order.currencyCode,
+  });
+  sendEmailNotification({
+    userId,
+    to: user.email,
+    type: "order_confirmation",
+    subject: confirmation.subject,
+    html: confirmation.html,
   });
 
   return order;

@@ -90,8 +90,11 @@
     "cod": "Cash on delivery",
     "payWithCard": "Pay online (card)",
     "payWithPaypal": "Pay with PayPal",
+    "couponCode": "Coupon code (optional)",
+    "couponPlaceholder": "Enter code",
     "orderSummary": "Order summary",
     "subtotal": "Subtotal",
+    "discount": "Discount",
     "tax": "Tax",
     "shipping": "Shipping",
     "total": "Total",
@@ -170,7 +173,9 @@
     "navOrders": "Orders",
     "navAddresses": "Addresses",
     "navWishlist": "Wishlist",
-    "navReviews": "Reviews"
+    "navReviews": "Reviews",
+    "navAffiliate": "Affiliate",
+    "navReferrals": "Referrals"
   },
   "Footer": {
     "rights": "© {year} Value Marka. All rights reserved."

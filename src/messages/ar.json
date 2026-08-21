@@ -90,8 +90,11 @@
     "cod": "الدفع عند الاستلام",
     "payWithCard": "ادفع أونلاين (بطاقة)",
     "payWithPaypal": "ادفع عبر PayPal",
+    "couponCode": "كود الخصم (اختياري)",
+    "couponPlaceholder": "أدخل الكود",
     "orderSummary": "ملخص الطلب",
     "subtotal": "المجموع الفرعي",
+    "discount": "الخصم",
     "tax": "الضريبة",
     "shipping": "الشحن",
     "total": "الإجمالي",
@@ -170,7 +173,9 @@
     "navOrders": "الطلبات",
     "navAddresses": "العناوين",
     "navWishlist": "المفضلة",
-    "navReviews": "التقييمات"
+    "navReviews": "التقييمات",
+    "navAffiliate": "التسويق بالعمولة",
+    "navReferrals": "الإحالات"
   },
   "Footer": {
     "rights": "© {year} فاليو ماركة. جميع الحقوق محفوظة."

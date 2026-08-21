@@ -251,15 +251,98 @@ its balance reflected everything correctly against this session's real
 historical order/payout data — including COGS computed from a real
 delivered-then-returned order left over from Phase 4's testing.
 
-## Phase 7 — Marketing ⬜
+## Phase 7 — Marketing ✅
 
-- CRM: customer profile aggregates (LTV, AOV, last order), `CustomerSegment`
-  evaluation.
-- Coupons, flash sales/bundles, abandoned-cart recovery job.
-- Email/SMS provider abstraction wired to real transactional templates
-  (welcome, order confirmation, shipment, refund, seller approval, payout).
-- Affiliate program (attribution, click/conversion tracking, payouts) and
-  customer referral rewards.
+- [x] Background job queue abstraction (`src/server/jobs/queue.ts`,
+      `ARCHITECTURE.md` §10): `enqueue`/`registerJob`/`runJob`. Falls back to
+      an in-process `setImmediate` runner when `CLOUD_TASKS_QUEUE`/
+      `CLOUD_TASKS_HANDLER_URL` are unset (always true in this environment),
+      otherwise does a real `fetch` to the Cloud Tasks handler URL — either
+      way the work it hands off actually runs, nothing here is mocked.
+- [x] Notification provider abstraction (`src/server/notifications/`):
+      `EmailProvider`/`SmsProvider` interfaces, real adapters for SMTP
+      (nodemailer), Resend, Twilio, and MessageBird, selected via
+      `EMAIL_PROVIDER`/`SMS_PROVIDER` env vars, plus real HTML templates
+      (welcome, order confirmation, shipment, refund, seller
+      approved/rejected, payout released, abandoned cart). `send.ts` persists
+      a real `Notification` row and calls the real provider — wired into
+      registration, checkout, order shipment/return, seller approval/
+      rejection, and payout release. As with Stripe/PayPal in Phase 5, no
+      SMTP/Resend/Twilio/MessageBird credentials exist in this sandbox, so
+      sends fail at the provider-call boundary in this environment; the
+      calling code never depends on the send succeeding (it's fire-and-forget
+      via the job queue), so nothing in the app breaks when it does.
+- [x] Coupons (`src/server/services/coupons.ts`): server-side validation and
+      discount computation (active/date-window/usage-limit/
+      usage-limit-per-user/min-order-total), `PERCENTAGE`/`FIXED_AMOUNT`/
+      `FREE_SHIPPING` types, `maxDiscount` cap, seller-scoped coupons that
+      only discount that seller's share of a multi-seller cart. Wired into
+      `placeOrder`: real `discountTotal`, per-`SellerOrder` `discountShare`
+      (full amount for a seller-scoped coupon, proportional split otherwise,
+      matching how tax/shipping are already split), `FREE_SHIPPING` zeroes
+      `shippingTotal`, and a real `CouponUsage` row records redemption inside
+      the order transaction. Seller (`/seller/coupons`) and platform
+      (`/admin/coupons`) CRUD UIs.
+- [x] CRM (`src/server/services/crm.ts`): customer profile aggregates
+      (order count, lifetime value, average order value, last order date) —
+      pure derivations over real `Order` rows, grouped by the customer's most
+      recent order's currency, excluding cancelled orders. `CustomerSegment`
+      membership is evaluated live against real order data on every call
+      (never stored per-user) against a small JSON rule language
+      (`lastOrderDaysAgo`/`totalSpent`/`orderCount`, each with
+      `gt`/`gte`/`lt`/`lte`). Admin UI at `/admin/customers` and
+      `/admin/segments`.
+- [x] Affiliate program (`src/server/services/affiliates.ts`): apply →
+      admin approve/suspend (`/admin/affiliates`) → create a tracked link →
+      `/api/r/[slug]` records a real click and sets httpOnly attribution
+      cookies (`vm_aff_id`/`vm_aff_click_id`) → checkout reads them and, on a
+      successful order, posts a real `AffiliateConversion` plus an
+      `AFFILIATE_COMMISSION` `LedgerEntry` (`subjectType: "AFFILIATE"`) —
+      guarded against double-crediting the same click via
+      `AffiliateConversion.clickId`'s uniqueness. Customer-facing dashboard
+      at `/account/affiliate` (apply, stats, create links).
+- [x] Referral program (`src/server/services/referrals.ts`): a stable
+      per-user `ReferralCode`, captured via `?ref=` on `/register` (a hidden
+      form field, not a cookie) and recorded against the new user in
+      `registerAction` — no self-referral, one referral per referred user.
+      `placeOrder` marks the referral `REWARDED` the first time the referred
+      user's order count would go from 0 to 1. **Known gap, deferred
+      intentionally**: there is no `CustomerCredit`/wallet model in the
+      schema, so a `REWARDED` referral records that a reward was earned with
+      no redemption mechanism yet — `DEFAULT_REFERRAL_REWARD` (a hardcoded
+      $5 fixed reward) stands in for an admin-configurable referral-rewards
+      model that doesn't exist yet. Customer-facing dashboard at
+      `/account/referrals` (copyable referral link, referral history).
+- [x] Abandoned-cart recovery (`src/server/services/abandonedCarts.ts`):
+      finds real `Cart` rows (belonging to a registered user, non-empty,
+      untouched for 24h+) and sends the recovery email once per abandonment
+      — deduplicated by checking for an existing `Notification` of type
+      `abandoned_cart` created after the cart's `updatedAt`, since there's no
+      dedicated "reminded" flag on `Cart`. Exposed at
+      `POST /api/cron/abandoned-carts`, authenticated with a `CRON_SECRET`
+      bearer token, intended to be triggered by Cloud Scheduler — not a live
+      cron in this sandbox (same honesty pattern as Stripe/PayPal in Phase 5:
+      real code, not yet live-triggered infrastructure).
+- [x] Tests (`tests/marketing/`): coupon validation and discount arithmetic
+      (percentage/fixed/free-shipping, `maxDiscount` cap, seller-scoping,
+      min-order-total, active window, usage limits) against a real database;
+      affiliate click → conversion → ledger-crediting plus the double-claim
+      guard; referral code creation/self-referral-refusal/one-per-user/
+      first-order reward; CRM profile aggregates (including the
+      no-orders-yet and cancelled-order-exclusion cases) and segment
+      evaluation.
+- Deliberately out of scope for this phase (no schema model exists for
+  either, and both would need real modeling work rather than a wiring pass):
+  flash sales/bundles, and the referral-credit redemption mechanism noted
+  above.
+
+Confirmed working end-to-end in this environment via the browser: registered
+a customer, applied to the affiliate program, generated a referral link from
+`/account/referrals`, registered a second account through that link (the
+`ref` code round-tripped through the hidden form field into a real
+`Referral` row), signed in as an admin and approved the affiliate from
+`/admin/affiliates`, and confirmed `/admin/coupons` and `/admin/segments`
+still render correctly.
 
 ## Phase 8 — Admin CMS ⬜
 

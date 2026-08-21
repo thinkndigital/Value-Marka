@@ -103,6 +103,14 @@ export default async function OrderDetailPage({
               {order.currencyCode} {order.subtotal.toString()}
             </span>
           </div>
+          {Number(order.discountTotal) > 0 ? (
+            <div className="flex justify-between text-sm text-text-secondary">
+              <span>{tCheckout("discount")}</span>
+              <span>
+                −{order.currencyCode} {order.discountTotal.toString()}
+              </span>
+            </div>
+          ) : null}
           <div className="flex justify-between text-sm text-text-secondary">
             <span>{tCheckout("tax")}</span>
             <span>

@@ -8,6 +8,9 @@ import { redirect } from "@/i18n/navigation";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, deleteSession } from "./session";
 import { loginSchema, registerSchema } from "./schemas";
+import { sendEmailNotification } from "@/server/notifications/send";
+import { welcomeEmail } from "@/server/notifications/templates";
+import { recordReferral } from "@/server/services/referrals";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
@@ -83,6 +86,20 @@ export async function registerAction(
     entityId: user.id,
     ipAddress: meta.ipAddress,
   });
+
+  const welcome = welcomeEmail(user.firstName);
+  sendEmailNotification({
+    userId: user.id,
+    to: user.email,
+    type: "welcome",
+    subject: welcome.subject,
+    html: welcome.html,
+  });
+
+  const refCode = formData.get("ref");
+  if (typeof refCode === "string" && refCode.trim()) {
+    await recordReferral(user.id, refCode);
+  }
 
   await createSession(user.id, meta);
   return redirect({ href: "/account", locale });

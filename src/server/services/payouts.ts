@@ -3,6 +3,8 @@ import { prisma } from "@/server/db";
 import { stripeProvider } from "@/server/payments/stripe";
 import { paypalProvider } from "@/server/payments/paypal";
 import type { PaymentProvider } from "@/server/payments/PaymentProvider";
+import { sendEmailNotification } from "@/server/notifications/send";
+import { payoutReleasedEmail } from "@/server/notifications/templates";
 
 export class PayoutError extends Error {}
 
@@ -97,7 +99,7 @@ function getProviderForMethod(method: string): PaymentProvider {
 export async function releasePayout(payoutId: string) {
   const payout = await prisma.payout.findUniqueOrThrow({
     where: { id: payoutId },
-    include: { seller: true },
+    include: { seller: { include: { user: { select: { id: true, email: true } } } } },
   });
   if (payout.status !== "APPROVED") {
     throw new PayoutError("Only an approved payout can be released.");
@@ -140,6 +142,19 @@ export async function releasePayout(payoutId: string) {
         description: `Payout released — ${transfer.providerRef}`,
       },
     });
+  });
+
+  const email = payoutReleasedEmail({
+    amount: payout.amount.toString(),
+    currencyCode: payout.currencyCode,
+    method: payout.method ?? "STRIPE",
+  });
+  sendEmailNotification({
+    userId: payout.seller.user.id,
+    to: payout.seller.user.email,
+    type: "payout_released",
+    subject: email.subject,
+    html: email.html,
   });
 
   return payout;

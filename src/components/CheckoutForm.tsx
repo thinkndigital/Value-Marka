@@ -124,6 +124,18 @@ export function CheckoutForm({
             ))}
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="couponCode" className="font-display text-sm font-semibold text-text-primary">
+              {t("couponCode")}
+            </label>
+            <input
+              id="couponCode"
+              name="couponCode"
+              placeholder={t("couponPlaceholder")}
+              className="vm-focus-ring h-10 rounded-md border border-border-default bg-bg-surface px-3 text-sm uppercase text-text-primary"
+            />
+          </div>
+
           {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
           <Alert variant="info">{paymentMethod === "COD" ? t("codNote") : t("onlinePaymentNote")}</Alert>
           <Button type="submit" variant="primary" size="lg" loading={pending} disabled={!selected}>

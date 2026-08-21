@@ -13,7 +13,13 @@ type RegisterAction = (
   formData: FormData,
 ) => Promise<AuthFormState>;
 
-export function RegisterForm({ action }: { action: RegisterAction }) {
+export function RegisterForm({
+  action,
+  refCode,
+}: {
+  action: RegisterAction;
+  refCode?: string;
+}) {
   const t = useTranslations("Auth.Register");
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(
     action,
@@ -22,6 +28,7 @@ export function RegisterForm({ action }: { action: RegisterAction }) {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      {refCode ? <input type="hidden" name="ref" value={refCode} /> : null}
       {state.formError ? <Alert variant="danger">{state.formError}</Alert> : null}
       <div className="grid grid-cols-2 gap-4">
         <Input

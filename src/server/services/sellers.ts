@@ -3,6 +3,8 @@ import type { SellerStatus } from "@prisma/client";
 import type { z } from "zod";
 import { prisma } from "@/server/db";
 import type { sellerApplicationSchema } from "@/server/validation/seller";
+import { sendEmailNotification } from "@/server/notifications/send";
+import { sellerApprovedEmail, sellerRejectedEmail } from "@/server/notifications/templates";
 
 export class SellerError extends Error {}
 
@@ -72,7 +74,7 @@ export function getSellerWithApplication(id: string) {
 export async function approveSellerApplication(sellerId: string, actorId: string) {
   const sellerRole = await prisma.role.findUniqueOrThrow({ where: { key: "SELLER" } });
 
-  return prisma.$transaction(async (tx) => {
+  const seller = await prisma.$transaction(async (tx) => {
     const seller = await tx.seller.update({
       where: { id: sellerId },
       data: { status: "APPROVED" },
@@ -97,6 +99,18 @@ export async function approveSellerApplication(sellerId: string, actorId: string
 
     return seller;
   });
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: seller.userId } });
+  const email = sellerApprovedEmail(seller.storeName);
+  sendEmailNotification({
+    userId: user.id,
+    to: user.email,
+    type: "seller_approved",
+    subject: email.subject,
+    html: email.html,
+  });
+
+  return seller;
 }
 
 export async function rejectSellerApplication(
@@ -104,7 +118,7 @@ export async function rejectSellerApplication(
   actorId: string,
   reason: string,
 ) {
-  return prisma.$transaction(async (tx) => {
+  const seller = await prisma.$transaction(async (tx) => {
     const seller = await tx.seller.update({
       where: { id: sellerId },
       data: { status: "REJECTED" },
@@ -122,4 +136,16 @@ export async function rejectSellerApplication(
 
     return seller;
   });
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: seller.userId } });
+  const email = sellerRejectedEmail(seller.storeName, reason);
+  sendEmailNotification({
+    userId: user.id,
+    to: user.email,
+    type: "seller_rejected",
+    subject: email.subject,
+    html: email.html,
+  });
+
+  return seller;
 }

@@ -8,10 +8,13 @@ import { registerAction } from "@/server/auth/actions";
 
 export default async function RegisterPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ ref?: string }>;
 }) {
   const { locale } = await params;
+  const { ref } = await searchParams;
   const user = await getCurrentUser();
   if (user) {
     redirect({ href: "/account", locale });
@@ -32,7 +35,7 @@ export default async function RegisterPage({
             </h1>
             <p className="text-sm text-text-secondary">{t("subtitle")}</p>
           </div>
-          <RegisterForm action={boundAction} />
+          <RegisterForm action={boundAction} refCode={ref} />
         </CardBody>
       </Card>
     </div>

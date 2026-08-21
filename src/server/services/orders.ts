@@ -3,6 +3,8 @@ import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { recordInventoryMovement } from "./inventory";
 import { assertSellerOwns } from "@/server/rbac";
+import { sendEmailNotification } from "@/server/notifications/send";
+import { shipmentEmail, refundEmail } from "@/server/notifications/templates";
 
 export class OrderError extends Error {}
 
@@ -224,7 +226,11 @@ export async function transitionSellerOrder(
 ) {
   const sellerOrder = await prisma.sellerOrder.findUnique({
     where: { id: sellerOrderId },
-    include: { items: true },
+    include: {
+      items: true,
+      seller: { select: { storeName: true } },
+      order: { select: { orderNumber: true, currencyCode: true, user: { select: { id: true, email: true } } } },
+    },
   });
   if (!sellerOrder) throw new OrderError("Order not found.");
   assertSellerOwns(sellerOrder.sellerId, sellerId);
@@ -290,6 +296,40 @@ export async function transitionSellerOrder(
     await tx.sellerOrder.update({ where: { id: sellerOrderId }, data: { status: nextStatus } });
     await recomputeOrderStatus(tx, sellerOrder.orderId);
   });
+
+  if (sellerOrder.order.user) {
+    if (nextStatus === "SHIPPED" && options.carrier && options.trackingNumber) {
+      const email = shipmentEmail({
+        orderNumber: sellerOrder.order.orderNumber,
+        storeName: sellerOrder.seller.storeName,
+        carrier: options.carrier,
+        trackingNumber: options.trackingNumber,
+      });
+      sendEmailNotification({
+        userId: sellerOrder.order.user.id,
+        to: sellerOrder.order.user.email,
+        type: "shipment",
+        subject: email.subject,
+        html: email.html,
+      });
+    }
+
+    if (nextStatus === "RETURNED") {
+      const email = refundEmail({
+        orderNumber: sellerOrder.order.orderNumber,
+        storeName: sellerOrder.seller.storeName,
+        amount: sellerOrder.subtotal.toString(),
+        currencyCode: sellerOrder.order.currencyCode,
+      });
+      sendEmailNotification({
+        userId: sellerOrder.order.user.id,
+        to: sellerOrder.order.user.email,
+        type: "refund",
+        subject: email.subject,
+        html: email.html,
+      });
+    }
+  }
 
   return getSellerOrderForSeller(sellerId, sellerOrderId);
 }
