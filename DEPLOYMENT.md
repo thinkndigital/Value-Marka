@@ -314,3 +314,43 @@ zero when idle), expect roughly $25–40/month, dominated by the always-on
 Cloud SQL instance. `gcloud sql instances patch value-marka-db --tier=db-f1-micro`
 is cheaper for pure testing, at the cost of very little headroom — do not
 run production traffic on it.
+
+## 9. Deploying to Vercel instead
+
+Cloud Run (above) is this project's primary, fully-provisioned target, but
+Vercel works too — `next.config.ts` and `src/server/db.ts` both special-case
+it (see the comments there for why `output: "standalone"` and eager Prisma
+client instantiation don't work on Vercel's build model).
+
+1. **Connect a real Postgres database, not the Global Config Store.** In
+   the Vercel dashboard, open the project's **Storage** tab and connect a
+   Postgres-compatible provider — Neon, Supabase, or Vercel Postgres all
+   work (this app connects via `@prisma/adapter-pg`, no engine binary, so
+   any standard Postgres connection string is fine). The "Global Config
+   Store" product (`@vercel/global-config`) is a *different* product — a
+   small key-value store, not a relational database — and will not work
+   here.
+2. **Set `DATABASE_URL`** in Project Settings → Environment Variables to
+   that database's real connection string (some integrations name their
+   own var `POSTGRES_URL` or `POSTGRES_PRISMA_URL` instead — copy that
+   value into `DATABASE_URL` if so, since that's the name this app reads).
+3. **Set the other required env vars** from `.env.example` (`SESSION_SECRET`,
+   `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, `NEXT_PUBLIC_APP_URL`, payment/
+   email/SMS provider keys as needed).
+4. **Migrations run automatically on every Vercel deploy.** `package.json`
+   defines a `vercel-build` script (Vercel prefers this over `build` when
+   present) that runs `prisma migrate deploy` and the idempotent
+   `prisma/seed.ts` — which seeds the permission catalog, system roles,
+   language/currency/country reference data, and default homepage CMS
+   blocks — before `next build`. A brand-new, empty database is expected
+   and self-heals on first deploy; nothing extra to run by hand. (The
+   Cloud Run path above still applies its own `prisma migrate deploy` once,
+   manually, in section 3 — the Docker image build stage uses a dummy,
+   unreachable `DATABASE_URL` on purpose, so it cannot run migrations
+   itself.)
+5. Redeploy after saving env vars — Vercel does not auto-redeploy on env
+   var changes alone.
+
+Background jobs (abandoned-cart recovery, Cloud Scheduler in section 4.3)
+have no Vercel equivalent configured — either keep running them against a
+Cloud Scheduler → this Vercel URL, or leave them disabled until needed.
