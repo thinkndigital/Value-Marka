@@ -8,11 +8,27 @@
  * rates — those are business decisions an admin configures, not facts to
  * fabricate.
  *
+ * Also bootstraps the first SUPER_ADMIN account, but only from real
+ * operator-supplied credentials — ADMIN_EMAIL and ADMIN_PASSWORD env vars
+ * (see .env.example) — never a hardcoded/generated placeholder account.
+ * Solves the chicken-and-egg problem of a fresh deployment having no admin
+ * able to grant the first admin role through the UI. Skipped entirely if
+ * those vars aren't set.
+ *
  * Run with `npm run db:seed` (also runs automatically after
- * `prisma migrate dev` via prisma.config.ts).
+ * `prisma migrate dev` via prisma.config.ts, and on every Vercel deploy
+ * via the `vercel-build` script in package.json).
  */
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcryptjs";
+
+// Mirrors src/server/auth/password.ts's SALT_ROUNDS — duplicated, not
+// imported, because that module does `import "server-only"`, which throws
+// when loaded outside Next's server-component bundler. This seed script
+// runs as a plain Node script (see the run command below), so it never
+// gets the "react-server" export condition that makes that import safe.
+const SALT_ROUNDS = 12;
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -370,6 +386,44 @@ async function main() {
       data: permissions.map((p) => ({ roleId: record.id, permissionId: p.id })),
       skipDuplicates: true,
     });
+  }
+
+  console.log("Seeding bootstrap admin...");
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (adminEmail && adminPassword) {
+    const passwordHash = await bcrypt.hash(adminPassword, SALT_ROUNDS);
+    const admin = await prisma.user.upsert({
+      where: { email: adminEmail },
+      update: {
+        passwordHash,
+        status: "ACTIVE",
+        emailVerifiedAt: new Date(),
+      },
+      create: {
+        email: adminEmail,
+        passwordHash,
+        firstName: process.env.ADMIN_FIRST_NAME ?? "Admin",
+        lastName: process.env.ADMIN_LAST_NAME ?? "User",
+        status: "ACTIVE",
+        emailVerifiedAt: new Date(),
+      },
+    });
+
+    const superAdminRole = await prisma.role.findUniqueOrThrow({
+      where: { key: "SUPER_ADMIN" },
+    });
+    const existingUserRole = await prisma.userRole.findFirst({
+      where: { userId: admin.id, roleId: superAdminRole.id, sellerId: null },
+    });
+    if (!existingUserRole) {
+      await prisma.userRole.create({
+        data: { userId: admin.id, roleId: superAdminRole.id },
+      });
+    }
+    console.log(`Bootstrap admin ready: ${adminEmail}`);
+  } else {
+    console.log("ADMIN_EMAIL/ADMIN_PASSWORD not set — skipping bootstrap admin.");
   }
 
   console.log("Seeding languages...");

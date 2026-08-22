@@ -4,6 +4,7 @@ import { SkipLink } from "@/components/SkipLink";
 import { requireUser } from "@/server/auth/guards";
 
 const NAV = [
+  { href: "/admin/users", label: "Users" },
   { href: "/admin/sellers", label: "Sellers" },
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin/brands", label: "Brands" },
