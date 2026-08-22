@@ -20,6 +20,7 @@ export default async function AccountLayout({
     { href: "/account/orders", label: t("navOrders") },
     { href: "/account/addresses", label: t("navAddresses") },
     { href: "/account/wishlist", label: t("navWishlist") },
+    { href: "/account/following", label: t("navFollowing") },
     { href: "/account/reviews", label: t("navReviews") },
     { href: "/account/affiliate", label: t("navAffiliate") },
     { href: "/account/referrals", label: t("navReferrals") },

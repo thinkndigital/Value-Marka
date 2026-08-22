@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SalesTrendChart } from "@/components/admin/SalesTrendChart";
 import { listCurrenciesWithLedgerActivity } from "@/server/services/reports";
+import { getSellerFollowerCount } from "@/server/services/sellerFollow";
 import {
   getSalesTrend,
   getInventoryTurnover,
@@ -27,10 +28,17 @@ export default async function SellerAnalyticsPage({
   const currencies = await listCurrenciesWithLedgerActivity("SELLER", seller.id);
   const currency = currencyParam && currencies.includes(currencyParam) ? currencyParam : currencies[0];
   const days = DAY_OPTIONS.includes(Number(daysParam)) ? Number(daysParam) : 30;
+  const followerCount = await getSellerFollowerCount(seller.id);
 
   if (!currency) {
     return (
-      <div className="vm-container py-16">
+      <div className="vm-container flex max-w-3xl flex-col gap-6 py-16">
+        <Card>
+          <CardBody>
+            <p className="text-sm text-text-muted">Store followers</p>
+            <p className="font-display text-2xl font-bold text-text-primary">{followerCount}</p>
+          </CardBody>
+        </Card>
         <EmptyState
           title="No sales activity yet"
           description="Analytics appear here once a customer's payment is captured for one of your orders."
@@ -50,6 +58,13 @@ export default async function SellerAnalyticsPage({
   return (
     <div className="vm-container flex max-w-3xl flex-col gap-6 py-10">
       <h1 className="font-display text-2xl font-bold text-text-primary">Analytics</h1>
+
+      <Card>
+        <CardBody>
+          <p className="text-sm text-text-muted">Store followers</p>
+          <p className="font-display text-2xl font-bold text-text-primary">{followerCount}</p>
+        </CardBody>
+      </Card>
 
       <form method="GET" className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">

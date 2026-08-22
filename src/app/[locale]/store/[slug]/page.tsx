@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import { prisma } from "@/server/db";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FollowSellerButton } from "@/components/FollowSellerButton";
+import { getCurrentUser } from "@/server/auth/dal";
+import { getSellerFollowerCount, isFollowingSeller } from "@/server/services/sellerFollow";
 
 async function getStore(slug: string) {
   return prisma.seller.findFirst({
@@ -42,6 +45,12 @@ export default async function StorePage({
   const store = await getStore(slug);
   if (!store) notFound();
 
+  const [user, followerCount] = await Promise.all([
+    getCurrentUser(),
+    getSellerFollowerCount(store.id),
+  ]);
+  const following = user ? await isFollowingSeller(user.id, store.id) : false;
+
   return (
     <div className="flex flex-col">
       <div
@@ -61,13 +70,24 @@ export default async function StorePage({
               className="h-16 w-16 rounded-lg border border-border-default bg-bg-surface object-cover"
             />
           ) : null}
-          <div>
-            <h1 className="font-display text-2xl font-bold text-text-primary">
-              {store.storeName}
-            </h1>
-            {store.description ? (
-              <p className="max-w-xl text-sm text-text-secondary">{store.description}</p>
-            ) : null}
+          <div className="flex flex-1 flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="font-display text-2xl font-bold text-text-primary">
+                {store.storeName}
+              </h1>
+              {store.description ? (
+                <p className="max-w-xl text-sm text-text-secondary">{store.description}</p>
+              ) : null}
+              <p className="text-sm text-text-muted">
+                {followerCount} {followerCount === 1 ? "follower" : "followers"}
+              </p>
+            </div>
+            <FollowSellerButton
+              sellerId={store.id}
+              storeSlug={store.storeSlug}
+              initialFollowing={following}
+              signedIn={Boolean(user)}
+            />
           </div>
         </div>
       </div>
