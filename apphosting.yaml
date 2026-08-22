@@ -1,0 +1,76 @@
+# Firebase App Hosting configuration.
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+#
+# This backend was connected to this branch directly from the Firebase
+# console, without this file existing yet — that's why the first deploy ran
+# with zero environment variables and crashed at runtime (see /api/debug).
+# Values below marked `secret:` must exist in Secret Manager first, created
+# with the Firebase CLI so it also grants this backend's service account
+# read access automatically:
+#
+#   firebase apphosting:secrets:set value-marka-database-url
+#   firebase apphosting:secrets:set value-marka-session-secret
+#   firebase apphosting:secrets:set value-marka-actions-encryption-key
+#   firebase apphosting:secrets:set value-marka-cron-secret
+#   firebase apphosting:secrets:set value-marka-admin-email
+#   firebase apphosting:secrets:set value-marka-admin-password
+#
+# Each command prompts for the value (paste it, it isn't echoed) and stores
+# it in Secret Manager under that name — see DEPLOYMENT.md §10 for exactly
+# what value each one needs and how to provision the Cloud SQL database
+# DATABASE_URL points to.
+#
+# NOTE: prisma migrate deploy does NOT run as part of this build (the
+# `build` script below is `prisma generate && next build` — no DB access at
+# build time by design, see src/server/db.ts). After the first successful
+# deploy with these secrets set, migrations + seed still need to be run
+# once by hand against the Cloud SQL database — see DEPLOYMENT.md §10.
+
+runConfig:
+  minInstances: 0
+
+env:
+  # Update this to the real hosted.app URL (or custom domain) once known —
+  # it's used for canonical URLs, sitemap entries, and JSON-LD, not for
+  # routing.
+  - variable: NEXT_PUBLIC_APP_URL
+    value: "https://valuemarka--studio-4511819966-bc14f.us-east4.hosted.app"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: DATABASE_URL
+    secret: value-marka-database-url
+    availability:
+      - RUNTIME
+
+  - variable: SESSION_SECRET
+    secret: value-marka-session-secret
+    availability:
+      - RUNTIME
+
+  - variable: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+    secret: value-marka-actions-encryption-key
+    availability:
+      - RUNTIME
+
+  - variable: CRON_SECRET
+    secret: value-marka-cron-secret
+    availability:
+      - RUNTIME
+
+  # Bootstraps the first SUPER_ADMIN account on first seed run (see
+  # prisma/seed.ts) — only takes effect when both are set.
+  - variable: ADMIN_EMAIL
+    secret: value-marka-admin-email
+    availability:
+      - RUNTIME
+  - variable: ADMIN_PASSWORD
+    secret: value-marka-admin-password
+    availability:
+      - RUNTIME
+
+  # Add more of .env.example's variables here the same way as each feature
+  # (payments, email/SMS, GCS uploads, etc.) is turned on for this
+  # deployment — plain `value:` for non-secret config, `secret:` (created
+  # via `firebase apphosting:secrets:set`) for anything sensitive.

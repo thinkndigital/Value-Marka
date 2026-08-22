@@ -419,3 +419,122 @@ Runtime Logs UI alone: `next build` doesn't check these vars, so a
 misconfiguration doesn't show up until a real user hits it as
 `{"severity":"ERROR",...}` deep in a log stream. Point a browser at that
 URL instead of hunting through logs.
+
+## 10. Deploying to Firebase App Hosting instead
+
+A third option, and — as of this writing — the one actually connected to
+this branch. Firebase App Hosting auto-detects a Next.js app and builds it
+with its own buildpack (`prisma generate && next build`, the plain `build`
+script — **not** `vercel-build`, and not this repo's `Dockerfile`), so
+neither the Vercel-specific migration step nor the Cloud Run Dockerfile
+path apply here. Connecting a branch through the Firebase console does
+**not** create `apphosting.yaml` for you — without it, the backend runs
+with zero environment variables, which is exactly what happened the first
+time (every DB-backed page 500'd; `GET /api/debug` returned
+`{"error":"CRON_SECRET is not configured on this deployment."}`, meaning no
+env vars at all were wired up).
+
+### 10.1 Provision Cloud SQL for Postgres
+
+Firebase App Hosting runs on Cloud Run under the hood, but `apphosting.yaml`
+doesn't (yet) expose the same `--add-cloudsql-instances` Unix-socket
+attachment `gcloud run deploy` does. The portable alternative — works the
+same regardless of that — is a public IP with SSL required:
+
+```bash
+gcloud config set project value-marka
+gcloud services enable sqladmin.googleapis.com secretmanager.googleapis.com
+
+gcloud sql instances create value-marka-db \
+  --database-version=POSTGRES_16 \
+  --region=me-central1 \
+  --tier=db-g1-small \
+  --storage-size=10GB \
+  --storage-auto-increase \
+  --require-ssl
+
+# App Hosting's outbound IPs aren't fixed/discoverable the way a normal VM's
+# would be, so IP-allowlisting isn't practical here — SSL + a strong
+# password are the real security boundary in this setup. (A private VPC
+# connector is the tighter alternative later, once this is otherwise
+# working.)
+gcloud sql instances patch value-marka-db --authorized-networks=0.0.0.0/0
+
+DB_PASSWORD=$(openssl rand -base64 24)
+echo "Save this DB password somewhere safe: $DB_PASSWORD"
+
+gcloud sql users create valuemarka_app --instance=value-marka-db --password="$DB_PASSWORD"
+gcloud sql databases create valuemarka --instance=value-marka-db
+
+gcloud sql instances describe value-marka-db --format="value(ipAddresses[0].ipAddress)"
+```
+
+That last command prints the instance's public IP. Build the connection
+string from it:
+
+```
+postgresql://valuemarka_app:<DB_PASSWORD>@<PUBLIC_IP>:5432/valuemarka?sslmode=require
+```
+
+### 10.2 Create the secrets `apphosting.yaml` (committed to this repo)
+references
+
+Use the Firebase CLI, not raw `gcloud secrets create` — it also grants this
+backend's service account read access automatically, which otherwise
+requires guessing that service account's exact identity:
+
+```bash
+firebase apphosting:secrets:set value-marka-database-url
+# paste: postgresql://valuemarka_app:<DB_PASSWORD>@<PUBLIC_IP>:5432/valuemarka?sslmode=require
+
+firebase apphosting:secrets:set value-marka-session-secret
+# paste the output of: openssl rand -base64 32
+
+firebase apphosting:secrets:set value-marka-actions-encryption-key
+# paste the output of: openssl rand -base64 32
+
+firebase apphosting:secrets:set value-marka-cron-secret
+# paste the output of: openssl rand -base64 32
+
+firebase apphosting:secrets:set value-marka-admin-email
+# paste a real email — bootstraps the first SUPER_ADMIN on first seed run
+
+firebase apphosting:secrets:set value-marka-admin-password
+# paste a password meeting the same rule registration enforces: 8+ chars,
+# at least one letter and one number
+```
+
+### 10.3 Push `apphosting.yaml` and redeploy
+
+`apphosting.yaml` at the repo root already declares each of the variables
+above (`secret:` referencing the Secret Manager name, matching what §10.2
+just created) plus `NEXT_PUBLIC_APP_URL` as a plain value — update that URL
+if the backend's hosted.app domain or a custom domain differs. A push to
+the linked branch triggers a new build+deploy that picks these up.
+
+### 10.4 Run migrations + seed once, by hand
+
+Same constraint as the Cloud Run and Vercel paths' respective notes above:
+the build step here (`prisma generate && next build`) never touches the
+database, so a fresh Cloud SQL database has no schema and no seed data
+(roles/permissions, countries/currencies, the SUPER_ADMIN account) until
+this is run once, from any machine that can reach the public IP from
+§10.1:
+
+```bash
+DATABASE_URL="postgresql://valuemarka_app:<DB_PASSWORD>@<PUBLIC_IP>:5432/valuemarka?sslmode=require" \
+  npx prisma migrate deploy
+
+DATABASE_URL="postgresql://valuemarka_app:<DB_PASSWORD>@<PUBLIC_IP>:5432/valuemarka?sslmode=require" \
+  ADMIN_EMAIL="<same email as the secret>" \
+  ADMIN_PASSWORD="<same password as the secret>" \
+  npm run db:seed
+```
+
+Repeat `prisma migrate deploy` after any future deploy that adds a new
+migration — it's idempotent (only applies migrations not already recorded
+as run), so it's safe to run again even when nothing changed.
+
+Confirm all of this actually worked with the same diagnostic endpoint
+§9.1 describes: `GET /api/debug?secret=<the CRON_SECRET value>` against the
+live hosted.app URL.
