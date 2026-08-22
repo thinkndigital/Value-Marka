@@ -79,6 +79,11 @@ const GROUPS: { title: string; items: { href: string; label: string; description
         description: "Hero, featured sections, banners.",
       },
       {
+        href: "/admin/blog",
+        label: "Blog",
+        description: "Posts, categories, and tags shown at /blog.",
+      },
+      {
         href: "/admin/cms/announcement",
         label: "Announcement bar",
         description: "Site-wide banner shown above the header.",

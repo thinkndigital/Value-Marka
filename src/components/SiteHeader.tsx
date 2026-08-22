@@ -42,6 +42,12 @@ export async function SiteHeader({ locale }: { locale: string }) {
               {t("sell")}
             </Link>
             <Link
+              href="/blog"
+              className="hidden text-sm font-medium text-text-secondary hover:text-text-primary sm:inline"
+            >
+              {t("blog")}
+            </Link>
+            <Link
               href="/cart"
               className="vm-focus-ring relative text-sm font-medium text-text-secondary hover:text-text-primary"
             >

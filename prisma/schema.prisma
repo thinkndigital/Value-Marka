@@ -50,6 +50,7 @@ model User {
   couponUsages       CouponUsage[]
   verificationTokens VerificationToken[]
   loyaltyAccount     LoyaltyAccount?
+  blogPosts          BlogPost[]
 
   @@index([status])
 }
@@ -1417,6 +1418,67 @@ model NavigationItem {
   menu     NavigationMenu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
   parent   NavigationItem?  @relation("NavTree", fields: [parentId], references: [id])
   children NavigationItem[] @relation("NavTree")
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model BlogCategory {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  nameEn    String
+  nameAr    String
+  createdAt DateTime @default(now())
+
+  posts BlogPost[]
+}
+
+model BlogTag {
+  id     String @id @default(uuid())
+  slug   String @unique
+  nameEn String
+  nameAr String
+
+  posts BlogPostTag[]
+}
+
+model BlogPost {
+  id             String         @id @default(uuid())
+  slug           String         @unique
+  categoryId     String?
+  authorId       String?
+  titleEn        String
+  titleAr        String
+  excerptEn      String?
+  excerptAr      String?
+  bodyEn         String         @db.Text
+  bodyAr         String         @db.Text
+  coverImageUrl  String?
+  seoTitle       String?
+  seoDescription String?
+  status         BlogPostStatus @default(DRAFT)
+  publishedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  category BlogCategory? @relation(fields: [categoryId], references: [id])
+  author   User?         @relation(fields: [authorId], references: [id])
+  tags     BlogPostTag[]
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+}
+
+model BlogPostTag {
+  postId String
+  tagId  String
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

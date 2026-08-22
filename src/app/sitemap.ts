@@ -24,7 +24,7 @@ function localizedEntry(path: string, lastModified: Date): MetadataRoute.Sitemap
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [products, sellers, pages] = await Promise.all([
+  const [products, sellers, pages, posts] = await Promise.all([
     prisma.product.findMany({
       where: { status: "ACTIVE" },
       select: { slug: true, updatedAt: true },
@@ -40,12 +40,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
     }),
+    prisma.blogPost.findMany({
+      where: { status: "PUBLISHED" },
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+    }),
   ]);
 
   return [
     localizedEntry("", new Date()),
+    localizedEntry("/blog", new Date()),
     ...products.map((p) => localizedEntry(`/product/${p.slug}`, p.updatedAt)),
     ...sellers.map((s) => localizedEntry(`/store/${s.storeSlug}`, s.updatedAt)),
     ...pages.map((p) => localizedEntry(`/page/${p.slug}`, p.updatedAt)),
+    ...posts.map((p) => localizedEntry(`/blog/${p.slug}`, p.updatedAt)),
   ];
 }
