@@ -14,6 +14,8 @@ import { getAvailableStock } from "@/server/services/inventory";
 import { listReviewsForProduct } from "@/server/services/reviews";
 import { isProductWishlisted } from "@/server/services/wishlist";
 import { getCurrentUser } from "@/server/auth/dal";
+import { getActiveFlashSaleItemForProduct, computeEffectivePrice } from "@/server/services/flashSales";
+import { FlashSaleCountdown } from "@/components/FlashSaleCountdown";
 
 function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -44,11 +46,19 @@ export default async function ProductPage({
   if (!product) notFound();
 
   const t = await getTranslations("Product");
-  const [available, reviews, user] = await Promise.all([
+  const [available, reviews, user, flashSale] = await Promise.all([
     getAvailableStock(product.id),
     listReviewsForProduct(product.id),
     getCurrentUser(),
+    getActiveFlashSaleItemForProduct(product.id),
   ]);
+  const salePrice = flashSale
+    ? computeEffectivePrice(Number(product.price), flashSale.discountPercent)
+    : null;
+  const remainingFlashStock =
+    flashSale?.stockLimit !== null && flashSale?.stockLimit !== undefined
+      ? Math.max(flashSale.stockLimit - flashSale.soldCount, 0)
+      : null;
   const wishlisted = user ? await isProductWishlisted(user.id, product.id) : false;
   const userAlreadyReviewed = user ? reviews.some((r) => r.userId === user.id) : false;
   const avgRating =
@@ -74,7 +84,7 @@ export default async function ProductPage({
             "@type": "Offer",
             url: productUrl,
             priceCurrency: product.currencyCode,
-            price: product.price.toString(),
+            price: salePrice !== null ? salePrice.toFixed(2) : product.price.toString(),
             availability:
               available > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
             seller: { "@type": "Organization", name: product.seller.storeName },
@@ -157,9 +167,32 @@ export default async function ProductPage({
                 </p>
               ) : null}
 
-              <p className="font-display text-3xl font-extrabold text-text-primary">
-                {product.currencyCode} {product.price.toString()}
-              </p>
+              {flashSale && salePrice !== null ? (
+                <div className="flex flex-col gap-1">
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    <p className="font-display text-3xl font-extrabold text-danger">
+                      {product.currencyCode} {salePrice.toFixed(2)}
+                    </p>
+                    <p className="font-display text-lg font-medium text-text-muted line-through">
+                      {product.currencyCode} {product.price.toString()}
+                    </p>
+                    <span className="rounded-pill bg-danger px-2.5 py-1 text-xs font-bold text-white">
+                      -{flashSale.discountPercent}%
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                    <span>Deal ends in</span>
+                    <FlashSaleCountdown endsAt={flashSale.endsAt.toISOString()} />
+                    {remainingFlashStock !== null ? (
+                      <span>· {remainingFlashStock} left at this price</span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <p className="font-display text-3xl font-extrabold text-text-primary">
+                  {product.currencyCode} {product.price.toString()}
+                </p>
+              )}
 
               <p className="text-sm text-text-muted">
                 {available > 0 ? t("inStock", { count: available }) : t("outOfStock")}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CartItemRow } from "@/components/CartItemRow";
 import { getCurrentCart } from "@/server/cart/resolve";
-import { computeCartTotals } from "@/server/services/cart";
+import { getActiveFlashSaleItemsForProducts, resolveEffectivePrice } from "@/server/services/flashSales";
 
 export default async function CartPage({
   params,
@@ -16,9 +16,14 @@ export default async function CartPage({
   const { locale } = await params;
   const [t, cart] = await Promise.all([getTranslations("Cart"), getCurrentCart()]);
   const items = cart?.items ?? [];
-  const { subtotal } = computeCartTotals(
-    items.map((item) => ({ quantity: item.quantity, product: { price: item.product.price } })),
+  const flashSaleItems = await getActiveFlashSaleItemsForProducts(items.map((item) => item.productId));
+  const effectivePrices = items.map((item) =>
+    resolveEffectivePrice(Number(item.product.price), flashSaleItems.get(item.productId)),
   );
+  const subtotal =
+    Math.round(
+      items.reduce((sum, item, i) => sum + effectivePrices[i] * item.quantity, 0) * 100,
+    ) / 100;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -40,20 +45,25 @@ export default async function CartPage({
           ) : (
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
               <div className="rounded-lg border border-border-default bg-bg-surface px-4 lg:col-span-2">
-                {items.map((item) => (
-                  <CartItemRow
-                    key={item.id}
-                    id={item.id}
-                    slug={item.product.slug}
-                    name={item.product.name}
-                    imageUrl={item.product.images[0]?.url}
-                    sellerName={item.product.seller.storeName}
-                    currencyCode={item.product.currencyCode}
-                    price={item.product.price.toString()}
-                    quantity={item.quantity}
-                    lineTotal={(Number(item.product.price) * item.quantity).toFixed(2)}
-                  />
-                ))}
+                {items.map((item, i) => {
+                  const flash = flashSaleItems.get(item.productId);
+                  const effectivePrice = effectivePrices[i];
+                  return (
+                    <CartItemRow
+                      key={item.id}
+                      id={item.id}
+                      slug={item.product.slug}
+                      name={item.product.name}
+                      imageUrl={item.product.images[0]?.url}
+                      sellerName={item.product.seller.storeName}
+                      currencyCode={item.product.currencyCode}
+                      price={effectivePrice.toFixed(2)}
+                      originalPrice={flash ? item.product.price.toString() : undefined}
+                      quantity={item.quantity}
+                      lineTotal={(effectivePrice * item.quantity).toFixed(2)}
+                    />
+                  );
+                })}
               </div>
 
               <div className="flex h-fit flex-col gap-4 rounded-lg border border-border-default bg-bg-surface p-5">

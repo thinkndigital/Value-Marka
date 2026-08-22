@@ -18,6 +18,8 @@ interface CartItemRowProps {
   sellerName: string;
   currencyCode: string;
   price: string;
+  /** Set only when a flash sale discounts this item — the pre-discount price. */
+  originalPrice?: string;
   quantity: number;
   lineTotal: string;
 }
@@ -30,6 +32,7 @@ export function CartItemRow({
   sellerName,
   currencyCode,
   price,
+  originalPrice,
   quantity,
   lineTotal,
 }: CartItemRowProps) {
@@ -58,9 +61,20 @@ export function CartItemRow({
           {name}
         </Link>
         <p className="text-xs text-text-muted">{sellerName}</p>
-        <p className="text-sm text-text-secondary">
-          {currencyCode} {price}
-        </p>
+        {originalPrice ? (
+          <p className="flex items-center gap-2 text-sm">
+            <span className="font-semibold text-danger">
+              {currencyCode} {price}
+            </span>
+            <span className="text-text-muted line-through">
+              {currencyCode} {originalPrice}
+            </span>
+          </p>
+        ) : (
+          <p className="text-sm text-text-secondary">
+            {currencyCode} {price}
+          </p>
+        )}
       </div>
 
       <form action={updateAction} className="flex items-center gap-2">

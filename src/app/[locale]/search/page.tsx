@@ -6,6 +6,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { searchProducts, listSearchableCategories, type SearchSort } from "@/server/services/search";
+import { getActiveFlashSaleItemsForProducts, computeEffectivePrice } from "@/server/services/flashSales";
 
 const SORTS: SearchSort[] = ["newest", "price_asc", "price_desc"];
 
@@ -27,6 +28,9 @@ export default async function SearchPage({
     searchProducts({ q, categorySlug: sp.category, sort, page }),
     listSearchableCategories(),
   ]);
+  const flashSaleItems = await getActiveFlashSaleItemsForProducts(
+    results.items.map((product) => product.id),
+  );
 
   const baseQuery = { q, category: sp.category, sort };
 
@@ -90,19 +94,28 @@ export default async function SearchPage({
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {results.items.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={{
-                      slug: product.slug,
-                      name: product.name,
-                      price: product.price.toString(),
-                      currencyCode: product.currencyCode,
-                      imageUrl: product.images[0]?.url,
-                      sellerName: product.seller.storeName,
-                    }}
-                  />
-                ))}
+                {results.items.map((product) => {
+                  const flash = flashSaleItems.get(product.id);
+                  return (
+                    <ProductCard
+                      key={product.id}
+                      product={{
+                        slug: product.slug,
+                        name: product.name,
+                        price: product.price.toString(),
+                        currencyCode: product.currencyCode,
+                        imageUrl: product.images[0]?.url,
+                        sellerName: product.seller.storeName,
+                        flashSale: flash
+                          ? {
+                              discountPercent: flash.discountPercent,
+                              salePrice: computeEffectivePrice(Number(product.price), flash.discountPercent),
+                            }
+                          : null,
+                      }}
+                    />
+                  );
+                })}
               </div>
 
               {results.pageCount > 1 ? (

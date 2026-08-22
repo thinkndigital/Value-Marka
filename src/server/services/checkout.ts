@@ -8,6 +8,12 @@ import { recordAffiliateConversion, type AffiliateAttribution } from "./affiliat
 import { rewardReferralOnFirstOrder } from "./referrals";
 import { sendEmailNotification } from "@/server/notifications/send";
 import { orderConfirmationEmail } from "@/server/notifications/templates";
+import {
+  getActiveFlashSaleItemsForProducts,
+  resolveEffectivePrice,
+  claimFlashSaleStock,
+  FlashSaleError,
+} from "./flashSales";
 
 export class CheckoutError extends Error {}
 
@@ -92,10 +98,18 @@ export async function placeOrder(userId: string, addressId: string, options: Pla
   });
   const taxRate = taxRules.reduce((sum, rule) => sum + Number(rule.rate), 0);
 
-  const subtotal = cart.items.reduce(
-    (sum, item) => sum + Number(item.product.price) * item.quantity,
-    0,
+  // Flash-sale pricing is resolved once here, from the database, and reused
+  // for the subtotal, coupon evaluation, and every OrderItem below — never
+  // trust a frontend-displayed sale price or countdown.
+  const cartItems = cart.items;
+  const flashSaleItems = await getActiveFlashSaleItemsForProducts(
+    cartItems.map((item) => item.productId),
   );
+  function effectivePrice(item: (typeof cartItems)[number]): number {
+    return resolveEffectivePrice(Number(item.product.price), flashSaleItems.get(item.productId));
+  }
+
+  const subtotal = cart.items.reduce((sum, item) => sum + effectivePrice(item) * item.quantity, 0);
   const taxTotal = Math.round(subtotal * taxRate * 100) / 100;
 
   // Platform-wide shipping methods only (sellerId null) — a seller-specific
@@ -120,7 +134,7 @@ export async function placeOrder(userId: string, addressId: string, options: Pla
         userId,
         cart.items.map((item) => ({
           sellerId: item.product.sellerId,
-          lineTotal: Number(item.product.price) * item.quantity,
+          lineTotal: effectivePrice(item) * item.quantity,
         })),
       );
     } catch (err) {
@@ -164,7 +178,7 @@ export async function placeOrder(userId: string, addressId: string, options: Pla
 
     for (const [sellerId, items] of bySeller) {
       const sellerSubtotal = items.reduce(
-        (sum, item) => sum + Number(item.product.price) * item.quantity,
+        (sum, item) => sum + effectivePrice(item) * item.quantity,
         0,
       );
       const sellerTaxShare =
@@ -193,7 +207,8 @@ export async function placeOrder(userId: string, addressId: string, options: Pla
       });
 
       for (const item of items) {
-        const lineTotal = Math.round(Number(item.product.price) * item.quantity * 100) / 100;
+        const unitPrice = effectivePrice(item);
+        const lineTotal = Math.round(unitPrice * item.quantity * 100) / 100;
         await tx.orderItem.create({
           data: {
             sellerOrderId: sellerOrder.id,
@@ -202,11 +217,21 @@ export async function placeOrder(userId: string, addressId: string, options: Pla
             nameSnapshot: item.product.name,
             skuSnapshot: item.variant?.sku ?? item.product.sku,
             quantity: item.quantity,
-            unitPrice: item.product.price,
+            unitPrice,
             unitCostPrice: item.variant?.costPrice ?? item.product.costPrice,
             lineTotal,
           },
         });
+
+        const flash = flashSaleItems.get(item.productId);
+        if (flash) {
+          try {
+            await claimFlashSaleStock(tx, flash.id, item.quantity);
+          } catch (err) {
+            if (err instanceof FlashSaleError) throw new CheckoutError(err.message);
+            throw err;
+          }
+        }
 
         await reserveStockForItem(tx, {
           productId: item.productId,

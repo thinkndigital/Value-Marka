@@ -49,6 +49,11 @@ const GROUPS: { title: string; items: { href: string; label: string; description
     title: "Marketing",
     items: [
       {
+        href: "/admin/marketing/flash-sales",
+        label: "Flash sales",
+        description: "Time-boxed, server-validated discounts on specific products.",
+      },
+      {
         href: "/admin/affiliates",
         label: "Affiliates",
         description: "Affiliate applications and commission status.",

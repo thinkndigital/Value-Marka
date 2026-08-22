@@ -11,6 +11,7 @@ import {
   getNewArrivals,
   getHomepageBanners,
 } from "@/server/services/cms";
+import { getActiveFlashSaleItemsForProducts, computeEffectivePrice } from "@/server/services/flashSales";
 
 export default async function HomePage({
   params,
@@ -25,6 +26,7 @@ export default async function HomePage({
     getNewArrivals(locale),
     getHomepageBanners(locale),
   ]);
+  const flashSaleItems = await getActiveFlashSaleItemsForProducts(products.map((p) => p.id));
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -116,19 +118,28 @@ export default async function HomePage({
               {t("allProducts")}
             </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={{
-                    slug: product.slug,
-                    name: product.name,
-                    price: product.price.toString(),
-                    currencyCode: product.currencyCode,
-                    imageUrl: product.images[0]?.url,
-                    sellerName: product.seller.storeName,
-                  }}
-                />
-              ))}
+              {products.map((product) => {
+                const flash = flashSaleItems.get(product.id);
+                return (
+                  <ProductCard
+                    key={product.id}
+                    product={{
+                      slug: product.slug,
+                      name: product.name,
+                      price: product.price.toString(),
+                      currencyCode: product.currencyCode,
+                      imageUrl: product.images[0]?.url,
+                      sellerName: product.seller.storeName,
+                      flashSale: flash
+                        ? {
+                            discountPercent: flash.discountPercent,
+                            salePrice: computeEffectivePrice(Number(product.price), flash.discountPercent),
+                          }
+                        : null,
+                    }}
+                  />
+                );
+              })}
             </div>
           </section>
         ) : null}

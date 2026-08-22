@@ -417,6 +417,7 @@ model Product {
   orderItems         OrderItem[]
   commissionRules    CommissionRule[]
   purchaseOrderItems PurchaseOrderItem[]
+  flashSaleItems     FlashSaleItem[]
 
   @@unique([sellerId, sku])
   @@index([categoryId])
@@ -773,6 +774,39 @@ model CouponUsage {
   coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id])
   order  Order  @relation(fields: [orderId], references: [id])
+}
+
+model FlashSale {
+  id        String   @id @default(uuid())
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  items FlashSaleItem[]
+
+  @@index([isActive, startsAt, endsAt])
+}
+
+/// One row per product enrolled in a flash sale. soldCount is only ever
+/// incremented inside the same transaction that reserves the order's
+/// stock (checkout.ts), guarded by a conditional update against
+/// stockLimit — never trust a frontend countdown or a pre-read count.
+model FlashSaleItem {
+  id              String   @id @default(uuid())
+  flashSaleId     String
+  productId       String
+  discountPercent Decimal  @db.Decimal(5, 2) // 0-100
+  stockLimit      Int?
+  soldCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  flashSale FlashSale @relation(fields: [flashSaleId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([flashSaleId, productId])
+  @@index([productId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

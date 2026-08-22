@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { CheckoutForm } from "@/components/CheckoutForm";
 import { requireUser } from "@/server/auth/guards";
 import { getCurrentCart } from "@/server/cart/resolve";
-import { computeCartTotals } from "@/server/services/cart";
+import { getActiveFlashSaleItemsForProducts, resolveEffectivePrice } from "@/server/services/flashSales";
 import { listAddressesForUser } from "@/server/services/addresses";
 import { placeOrderAction } from "@/server/checkout/actions";
 
@@ -53,9 +53,14 @@ export default async function CheckoutPage({
     );
   }
 
-  const { subtotal } = computeCartTotals(
-    items.map((item) => ({ quantity: item.quantity, product: { price: item.product.price } })),
+  const flashSaleItems = await getActiveFlashSaleItemsForProducts(items.map((item) => item.productId));
+  const effectivePrices = items.map((item) =>
+    resolveEffectivePrice(Number(item.product.price), flashSaleItems.get(item.productId)),
   );
+  const subtotal =
+    Math.round(
+      items.reduce((sum, item, i) => sum + effectivePrices[i] * item.quantity, 0) * 100,
+    ) / 100;
   const boundPlaceOrder = placeOrderAction.bind(null, locale);
 
   return (
@@ -79,14 +84,16 @@ export default async function CheckoutPage({
               <h2 className="font-display text-lg font-bold text-text-primary">
                 {t("orderSummary")}
               </h2>
-              {items.map((item) => (
+              {items.map((item, i) => (
                 <div key={item.id} className="flex justify-between text-sm text-text-secondary">
                   <span>
                     {item.product.name} × {item.quantity}
+                    {flashSaleItems.has(item.productId) ? (
+                      <span className="ms-1 text-xs font-semibold text-danger">(sale)</span>
+                    ) : null}
                   </span>
                   <span>
-                    {item.product.currencyCode}{" "}
-                    {(Number(item.product.price) * item.quantity).toFixed(2)}
+                    {item.product.currencyCode} {(effectivePrices[i] * item.quantity).toFixed(2)}
                   </span>
                 </div>
               ))}
