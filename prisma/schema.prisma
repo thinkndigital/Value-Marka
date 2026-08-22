@@ -420,6 +420,7 @@ model Product {
   commissionRules    CommissionRule[]
   purchaseOrderItems PurchaseOrderItem[]
   flashSaleItems     FlashSaleItem[]
+  digitalFile        DigitalProductFile?
 
   @@unique([sellerId, sku])
   @@index([categoryId])
@@ -776,6 +777,24 @@ model CouponUsage {
   coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id])
   order  Order  @relation(fields: [orderId], references: [id])
+}
+
+/// The private file behind a DIGITAL product. storageKey is never rendered
+/// to a client directly — every download goes through
+/// getDownloadUrlForOrderItem, which checks the requester actually owns a
+/// non-cancelled order for this product and hands back a short-lived
+/// signed URL (see src/server/storage: getSignedDownloadUrl /
+/// uploadPrivate).
+model DigitalProductFile {
+  id            String   @id @default(uuid())
+  productId     String   @unique
+  storageKey    String
+  fileName      String
+  fileSizeBytes Int
+  contentType   String
+  createdAt     DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model FlashSale {

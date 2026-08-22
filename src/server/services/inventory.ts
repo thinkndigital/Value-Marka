@@ -103,7 +103,16 @@ export function recordInventoryMovementStandalone(input: RecordMovementInput) {
 }
 
 /** Sum of sellable stock (quantity - reserved) across all warehouses. */
+// DIGITAL products have no Inventory rows by design (checkout.ts skips
+// physical stock reservation for them) — reported as always available so
+// every stock check funneling through this one function (cart, PDP) works
+// the same way for both product types without each caller re-deriving it.
+const UNLIMITED_DIGITAL_STOCK = 999_999;
+
 export async function getAvailableStock(productId: string, variantId?: string | null) {
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { type: true } });
+  if (product?.type === "DIGITAL") return UNLIMITED_DIGITAL_STOCK;
+
   const rows = await prisma.inventory.findMany({
     where: { productId, variantId: variantId ?? null },
     select: { quantity: true, reserved: true },

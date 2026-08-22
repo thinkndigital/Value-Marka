@@ -6,10 +6,12 @@ import { requireSellerForAction } from "@/server/auth/seller-guard";
 import { ForbiddenError, UnauthorizedError, requirePermission } from "@/server/rbac";
 import { writeAuditLog } from "@/server/audit";
 import { InvalidImageError, uploadImage } from "@/server/storage/upload-image";
-import { productSchema, stockAdjustmentSchema } from "@/server/validation/product";
+import { InvalidDigitalFileError, uploadDigitalFile } from "@/server/storage/upload-digital-file";
+import { productSchema, productTypeSchema, stockAdjustmentSchema } from "@/server/validation/product";
 import * as productService from "@/server/services/products";
 import { ProductError } from "@/server/services/products";
 import { InventoryError } from "@/server/services/inventory";
+import { setDigitalFile, DigitalProductError } from "@/server/services/digitalProducts";
 
 export interface ProductFormState {
   error?: string;
@@ -23,7 +25,9 @@ function handleProductError(err: unknown): ProductFormState {
     err instanceof ForbiddenError ||
     err instanceof ProductError ||
     err instanceof InventoryError ||
-    err instanceof InvalidImageError
+    err instanceof InvalidImageError ||
+    err instanceof InvalidDigitalFileError ||
+    err instanceof DigitalProductError
   ) {
     return { error: err.message };
   }
@@ -64,20 +68,39 @@ export async function createProductAction(
       return { fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]> };
     }
 
-    const warehouseId = String(formData.get("warehouseId") ?? "");
-    const initialQuantity = Number(formData.get("initialQuantity") ?? 0);
-    if (!warehouseId) {
-      return { fieldErrors: { warehouseId: ["Select a warehouse."] } };
+    const typeParsed = productTypeSchema.safeParse(formData.get("type") || "SIMPLE");
+    const type = typeParsed.success ? typeParsed.data : "SIMPLE";
+
+    let warehouseId: string | undefined;
+    let initialQuantity = 0;
+    if (type !== "DIGITAL") {
+      warehouseId = String(formData.get("warehouseId") ?? "");
+      if (!warehouseId) {
+        return { fieldErrors: { warehouseId: ["Select a warehouse."] } };
+      }
+      const rawQuantity = Number(formData.get("initialQuantity") ?? 0);
+      initialQuantity = Number.isFinite(rawQuantity) ? Math.max(0, Math.trunc(rawQuantity)) : 0;
+    }
+
+    const digitalFile = formData.get("digitalFile");
+    if (type === "DIGITAL" && (!(digitalFile instanceof File) || digitalFile.size === 0)) {
+      return { fieldErrors: { digitalFile: ["Upload the file customers will receive."] } };
     }
 
     const images = await collectImages(formData, seller.id);
 
     const product = await productService.createProduct(seller.id, parsed.data, {
+      type,
       warehouseId,
-      initialQuantity: Number.isFinite(initialQuantity) ? Math.max(0, Math.trunc(initialQuantity)) : 0,
+      initialQuantity,
       images,
       actorId: user.id,
     });
+
+    if (type === "DIGITAL" && digitalFile instanceof File) {
+      const uploaded = await uploadDigitalFile(digitalFile, seller.id);
+      await setDigitalFile(seller.id, product.id, uploaded);
+    }
 
     await writeAuditLog({
       actorId: user.id,
@@ -85,7 +108,7 @@ export async function createProductAction(
       action: "product.created",
       entityType: "Product",
       entityId: product.id,
-      newValue: { name: product.name, sku: product.sku, sellerId: seller.id },
+      newValue: { name: product.name, sku: product.sku, sellerId: seller.id, type },
     });
 
     revalidatePath("/seller/products");

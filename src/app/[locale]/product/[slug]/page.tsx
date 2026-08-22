@@ -195,7 +195,11 @@ export default async function ProductPage({
               )}
 
               <p className="text-sm text-text-muted">
-                {available > 0 ? t("inStock", { count: available }) : t("outOfStock")}
+                {product.type === "DIGITAL"
+                  ? t("digitalDelivery")
+                  : available > 0
+                    ? t("inStock", { count: available })
+                    : t("outOfStock")}
               </p>
 
               {product.shortDescription ? (

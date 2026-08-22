@@ -36,6 +36,12 @@ export const productSchema = z.object({
   weightGrams: z.coerce.number().int().nonnegative().optional(),
 });
 
+// Product type is settable only at creation — not part of the shared
+// productSchema above, so an edit form (which never renders a type field)
+// can never silently reset an existing product's type back to the zod
+// default on save.
+export const productTypeSchema = z.enum(["SIMPLE", "DIGITAL"]);
+
 export const stockAdjustmentSchema = z.object({
   warehouseId: z.string().min(1, "Select a warehouse."),
   delta: z.coerce.number().int().refine((v) => v !== 0, "Enter a non-zero amount."),

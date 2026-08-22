@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { CancelOrderButton } from "@/components/CancelOrderButton";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
+import { DownloadDigitalFileButton } from "@/components/DownloadDigitalFileButton";
 
 const CANCELLABLE_ORDER_STATUSES = ["PENDING", "CONFIRMED", "PROCESSING", "PACKED"];
 
@@ -81,9 +82,14 @@ export default async function OrderDetailPage({
                 <span className="text-text-primary">
                   {item.nameSnapshot} × {item.quantity}
                 </span>
-                <span className="text-text-secondary">
-                  {order.currencyCode} {item.lineTotal.toString()}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-text-secondary">
+                    {order.currencyCode} {item.lineTotal.toString()}
+                  </span>
+                  {item.product.type === "DIGITAL" && sellerOrder.status !== "CANCELLED" ? (
+                    <DownloadDigitalFileButton orderItemId={item.id} />
+                  ) : null}
+                </div>
               </div>
             ))}
             {sellerOrder.status === "DELIVERED" ? (

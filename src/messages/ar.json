@@ -30,6 +30,7 @@
     "soldBy": "يُباع بواسطة {storeName}",
     "inStock": "متوفر ({count})",
     "outOfStock": "غير متوفر حالياً",
+    "digitalDelivery": "منتج رقمي — تحميل فوري بعد الشراء",
     "quantity": "الكمية",
     "addToCart": "أضف إلى السلة",
     "adding": "جاري الإضافة…",

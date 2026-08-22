@@ -30,6 +30,7 @@
     "soldBy": "Sold by {storeName}",
     "inStock": "{count, plural, =1 {# left in stock} other {# in stock}}",
     "outOfStock": "Out of stock",
+    "digitalDelivery": "Digital product — instant download after purchase",
     "quantity": "Quantity",
     "addToCart": "Add to cart",
     "adding": "Adding…",

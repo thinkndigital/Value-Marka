@@ -38,6 +38,9 @@ yarn-error.log*
 /public/uploads/*
 !/public/uploads/.gitkeep
 
+# local private uploads (digital product files — never public, dev-only)
+/private-uploads/
+
 # vercel
 .vercel
 

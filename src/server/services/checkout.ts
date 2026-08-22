@@ -233,13 +233,18 @@ export async function placeOrder(userId: string, addressId: string, options: Pla
           }
         }
 
-        await reserveStockForItem(tx, {
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-          orderId: created.id,
-          actorId: userId,
-        });
+        // DIGITAL products have no physical stock to reserve — reserving
+        // against Inventory would make every digital product permanently
+        // unsellable (no Inventory row ever exists for one).
+        if (item.product.type !== "DIGITAL") {
+          await reserveStockForItem(tx, {
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            orderId: created.id,
+            actorId: userId,
+          });
+        }
       }
     }
 
@@ -298,7 +303,7 @@ export async function getOrderForUser(userId: string, orderNumber: string) {
       sellerOrders: {
         include: {
           seller: { select: { storeName: true } },
-          items: true,
+          items: { include: { product: { select: { type: true } } } },
         },
       },
     },

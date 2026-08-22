@@ -101,6 +101,33 @@ gcloud storage buckets add-iam-policy-binding gs://value-marka-uploads \
   --role=roles/storage.objectViewer
 ```
 
+### 1.4b Private bucket for digital-product files
+
+Digital products (P2.14) store their deliverable file separately from
+catalog imagery, in a bucket with **no** public IAM binding — only ever
+reachable through a short-lived v4 signed URL
+(`src/server/storage/gcs.ts`'s `uploadPrivate`/`getSignedDownloadUrl`).
+Do not add the `allUsers: objectViewer` binding used for the catalog
+bucket above to this one, and do not point
+`GOOGLE_CLOUD_STORAGE_PRIVATE_BUCKET` at the same bucket as
+`GOOGLE_CLOUD_STORAGE_BUCKET` — with uniform bucket-level access, "public"
+is a bucket-wide setting, so sharing a bucket would make digital-product
+files publicly guessable too.
+
+```bash
+gcloud storage buckets create gs://value-marka-private \
+  --location=me-central1 \
+  --uniform-bucket-level-access
+# No add-iam-policy-binding step here — this bucket stays private.
+```
+
+Grant the Cloud Run service account (created in §1.5) `roles/storage.objectAdmin`
+on this bucket the same way §1.5 grants it on the public one, then set
+`GOOGLE_CLOUD_STORAGE_PRIVATE_BUCKET=value-marka-private` alongside
+`GOOGLE_CLOUD_STORAGE_BUCKET` in the Cloud Run env vars (§4). If this
+variable is unset, uploading or downloading a digital-product file throws
+rather than silently falling back to the public bucket.
+
 ### 1.5 Service account for the running Cloud Run service
 
 ```bash
@@ -210,7 +237,7 @@ gcloud run deploy value-marka \
   --service-account=value-marka-run@value-marka.iam.gserviceaccount.com \
   --add-cloudsql-instances=value-marka:me-central1:value-marka-db \
   --set-secrets="DATABASE_URL=value-marka-database-url:latest,SESSION_SECRET=value-marka-session-secret:latest,NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=value-marka-actions-encryption-key:latest" \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT_ID=value-marka,GOOGLE_CLOUD_STORAGE_BUCKET=value-marka-uploads,NODE_ENV=production" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT_ID=value-marka,GOOGLE_CLOUD_STORAGE_BUCKET=value-marka-uploads,GOOGLE_CLOUD_STORAGE_PRIVATE_BUCKET=value-marka-private,NODE_ENV=production" \
   --allow-unauthenticated \
   --min-instances=0 \
   --max-instances=4

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
@@ -53,6 +53,7 @@ export function ProductForm({
     {},
   );
   const isCreate = warehouses !== undefined;
+  const [productType, setProductType] = useState<"SIMPLE" | "DIGITAL">("SIMPLE");
   const router = useRouter();
 
   useEffect(() => {
@@ -71,6 +72,25 @@ export function ProductForm({
       <Input id="name" name="name" label="Product name" required defaultValue={initial?.name} error={state.fieldErrors?.name?.[0]} />
       <Input id="slug" name="slug" label="Product URL" required hint="Lowercase letters, numbers, and hyphens only." defaultValue={initial?.slug} error={state.fieldErrors?.slug?.[0]} />
       <Input id="sku" name="sku" label="SKU" required defaultValue={initial?.sku} error={state.fieldErrors?.sku?.[0]} />
+
+      {isCreate ? (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="type" className="font-display text-sm font-semibold text-text-primary">
+            Product type
+          </label>
+          <select
+            id="type"
+            name="type"
+            value={productType}
+            onChange={(e) => setProductType(e.target.value as "SIMPLE" | "DIGITAL")}
+            className="vm-focus-ring h-11 rounded-md border border-border-default bg-bg-surface px-3.5 text-sm text-text-primary"
+          >
+            <option value="SIMPLE">Physical product</option>
+            <option value="DIGITAL">Digital product (file download)</option>
+          </select>
+          <p className="text-sm text-text-muted">Type can&apos;t be changed after creation.</p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
@@ -185,7 +205,29 @@ export function ProductForm({
         />
       </div>
 
-      {isCreate ? (
+      {isCreate && productType === "DIGITAL" ? (
+        <div className="flex flex-col gap-1.5 rounded-md border border-border-default bg-bg-sunken p-4">
+          <label htmlFor="digitalFile" className="font-display text-sm font-semibold text-text-primary">
+            File customers will download
+          </label>
+          <input
+            id="digitalFile"
+            name="digitalFile"
+            type="file"
+            required
+            className="vm-focus-ring text-sm"
+          />
+          <p className="text-sm text-text-muted">
+            Stored privately — buyers only ever get a short-lived, signed download link from their
+            order, never the file&apos;s storage location.
+          </p>
+          {state.fieldErrors?.digitalFile?.[0] ? (
+            <p className="text-sm text-danger">{state.fieldErrors.digitalFile[0]}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isCreate && productType !== "DIGITAL" ? (
         <div className="grid grid-cols-2 gap-4 rounded-md border border-border-default bg-bg-sunken p-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="warehouseId" className="font-display text-sm font-semibold text-text-primary">

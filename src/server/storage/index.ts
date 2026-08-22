@@ -10,7 +10,11 @@ export function getStorageProvider(): StorageProvider {
 
   const bucket = process.env.GOOGLE_CLOUD_STORAGE_BUCKET;
   if (bucket) {
-    cached = new GcsStorageProvider(bucket, process.env.GOOGLE_CLOUD_PROJECT_ID);
+    cached = new GcsStorageProvider(
+      bucket,
+      process.env.GOOGLE_CLOUD_PROJECT_ID,
+      process.env.GOOGLE_CLOUD_STORAGE_PRIVATE_BUCKET,
+    );
     return cached;
   }
 

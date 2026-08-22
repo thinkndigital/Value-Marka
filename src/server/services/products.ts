@@ -65,17 +65,24 @@ interface NewImage {
 export async function createProduct(
   sellerId: string,
   input: ProductInput,
-  opts: { warehouseId: string; initialQuantity: number; images: NewImage[]; actorId: string },
+  opts: {
+    type?: "SIMPLE" | "DIGITAL";
+    warehouseId?: string;
+    initialQuantity: number;
+    images: NewImage[];
+    actorId: string;
+  },
 ) {
+  const type = opts.type ?? "SIMPLE";
   const [category, warehouse, skuTaken, slugTaken] = await Promise.all([
     prisma.category.findUnique({ where: { id: input.categoryId } }),
-    prisma.warehouse.findUnique({ where: { id: opts.warehouseId } }),
+    type === "DIGITAL" ? null : prisma.warehouse.findUnique({ where: { id: opts.warehouseId } }),
     prisma.product.findUnique({ where: { sellerId_sku: { sellerId, sku: input.sku } } }),
     prisma.product.findUnique({ where: { slug: input.slug } }),
   ]);
 
   if (!category) throw new ProductError("Category not found.");
-  if (!warehouse || warehouse.sellerId !== sellerId) {
+  if (type !== "DIGITAL" && (!warehouse || warehouse.sellerId !== sellerId)) {
     throw new ProductError("Select one of your own warehouses.");
   }
   if (skuTaken) throw new ProductError("You already have a product with this SKU.");
@@ -94,6 +101,7 @@ export async function createProduct(
         slug: input.slug,
         sku: input.sku,
         name: input.name,
+        type,
         shortDescription: input.shortDescription,
         description: input.description,
         price: input.price,
@@ -105,7 +113,7 @@ export async function createProduct(
       },
     });
 
-    if (opts.initialQuantity > 0) {
+    if (type !== "DIGITAL" && opts.initialQuantity > 0 && opts.warehouseId) {
       await recordInventoryMovement(tx, {
         productId: product.id,
         warehouseId: opts.warehouseId,
