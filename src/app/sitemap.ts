@@ -7,7 +7,17 @@ import { routing } from "@/i18n/routing";
  * enumerated by hand — so a new product/store/page shows up here the
  * moment it goes ACTIVE/APPROVED/PUBLISHED, and a delisted one drops out,
  * with no separate step to keep in sync.
+ *
+ * `dynamic = "force-dynamic"` is what actually makes that true: without it,
+ * Next treats this route as static-eligible and queries the database once
+ * at build time instead, which (a) contradicts the comment above and (b)
+ * fails the build outright on any platform that doesn't have DATABASE_URL
+ * available at build time (Cloud Run/Firebase App Hosting's Dockerfile and
+ * buildpack builds both use a dummy/absent one on purpose — see
+ * src/server/db.ts).
  */
+export const dynamic = "force-dynamic";
+
 function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 }
