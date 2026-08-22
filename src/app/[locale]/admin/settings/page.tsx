@@ -29,6 +29,11 @@ const GROUPS: { title: string; items: { href: string; label: string; description
         description: "Rate history for cross-currency reporting.",
       },
       {
+        href: "/admin/integrations",
+        label: "Integrations",
+        description: "Stripe, PayPal, email, SMS, storage — real status and connection tests.",
+      },
+      {
         href: "/admin/coupons",
         label: "Coupons",
         description: "Discount codes and promotions.",
