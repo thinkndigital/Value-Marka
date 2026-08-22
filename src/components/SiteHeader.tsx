@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { Logo } from "@/components/Logo";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { SkipLink } from "@/components/SkipLink";
+import { AnnouncementBar } from "@/components/AnnouncementBar";
 import { Button } from "@/components/ui/Button";
 import { getCurrentUser } from "@/server/auth/dal";
 import { getCartItemCount } from "@/server/cart/resolve";
@@ -15,6 +16,7 @@ export async function SiteHeader({ locale }: { locale: string }) {
   return (
     <>
       <SkipLink />
+      <AnnouncementBar locale={locale} />
       <header className="border-b border-border-default bg-bg-surface">
         <div className="vm-container flex h-16 items-center gap-4">
           <Link href="/">

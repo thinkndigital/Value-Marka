@@ -209,6 +209,114 @@ export async function deleteBanner(id: string) {
   await prisma.cmsBlock.delete({ where: { id } });
 }
 
+// ── Admin: announcement bar ──────────────────────────────────────────────
+// One row per announcement, holding both languages in its content (unlike
+// hero/banner, which partition by CmsBlock.locale) — the admin form is
+// explicitly "Arabic text + English text" together, not a per-locale
+// editor. `locale` is fixed to a nominal constant purely so this reuses
+// the same key/locale index the rest of CmsBlock already has.
+
+const ANNOUNCEMENT_KEY = "site.announcement";
+const ANNOUNCEMENT_LOCALE = "en";
+
+export interface AnnouncementContent {
+  textEn: string;
+  textAr: string;
+  link?: string;
+  startDate?: string; // ISO date, inclusive
+  endDate?: string; // ISO date, inclusive
+}
+
+export function listAnnouncementsForAdmin() {
+  return prisma.cmsBlock.findMany({
+    where: { key: ANNOUNCEMENT_KEY, locale: ANNOUNCEMENT_LOCALE, pageId: null },
+    orderBy: { sortOrder: "asc" },
+  });
+}
+
+/** The single highest-priority (lowest sortOrder) announcement that's enabled and within its date range right now — real logic, not a placeholder. */
+export async function getActiveAnnouncement(locale: string, now: Date = new Date()) {
+  const blocks = await prisma.cmsBlock.findMany({
+    where: { key: ANNOUNCEMENT_KEY, locale: ANNOUNCEMENT_LOCALE, isActive: true, pageId: null },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const active = blocks.find((block) => {
+    const content = block.content as unknown as AnnouncementContent;
+    if (content.startDate && new Date(content.startDate) > now) return false;
+    if (content.endDate && new Date(content.endDate) < now) return false;
+    return true;
+  });
+  if (!active) return null;
+
+  const content = active.content as unknown as AnnouncementContent;
+  return {
+    id: active.id,
+    text: locale === "ar" ? content.textAr : content.textEn,
+    link: content.link,
+  };
+}
+
+export async function createAnnouncement(content: AnnouncementContent) {
+  const last = await prisma.cmsBlock.findFirst({
+    where: { key: ANNOUNCEMENT_KEY, locale: ANNOUNCEMENT_LOCALE, pageId: null },
+    orderBy: { sortOrder: "desc" },
+  });
+  return prisma.cmsBlock.create({
+    data: {
+      key: ANNOUNCEMENT_KEY,
+      type: "announcement",
+      locale: ANNOUNCEMENT_LOCALE,
+      sortOrder: (last?.sortOrder ?? -1) + 1,
+      content: content as unknown as Prisma.InputJsonValue,
+    },
+  });
+}
+
+async function getOwnedAnnouncement(id: string) {
+  const block = await prisma.cmsBlock.findUnique({ where: { id } });
+  if (!block || block.key !== ANNOUNCEMENT_KEY) throw new CmsError("Announcement not found.");
+  return block;
+}
+
+export async function updateAnnouncement(id: string, content: AnnouncementContent) {
+  await getOwnedAnnouncement(id);
+  return prisma.cmsBlock.update({
+    where: { id },
+    data: { content: content as unknown as Prisma.InputJsonValue },
+  });
+}
+
+export async function toggleAnnouncementActive(id: string) {
+  const block = await getOwnedAnnouncement(id);
+  return prisma.cmsBlock.update({ where: { id }, data: { isActive: !block.isActive } });
+}
+
+export async function reorderAnnouncement(id: string, direction: "up" | "down") {
+  const block = await getOwnedAnnouncement(id);
+  const neighbor = await prisma.cmsBlock.findFirst({
+    where: {
+      key: ANNOUNCEMENT_KEY,
+      locale: ANNOUNCEMENT_LOCALE,
+      pageId: null,
+      sortOrder: direction === "up" ? { lt: block.sortOrder } : { gt: block.sortOrder },
+    },
+    orderBy: { sortOrder: direction === "up" ? "desc" : "asc" },
+  });
+  if (!neighbor) return block;
+
+  await prisma.$transaction([
+    prisma.cmsBlock.update({ where: { id: block.id }, data: { sortOrder: neighbor.sortOrder } }),
+    prisma.cmsBlock.update({ where: { id: neighbor.id }, data: { sortOrder: block.sortOrder } }),
+  ]);
+  return block;
+}
+
+export async function deleteAnnouncement(id: string) {
+  await getOwnedAnnouncement(id);
+  await prisma.cmsBlock.delete({ where: { id } });
+}
+
 // ── Admin: landing pages (CmsPage) ──────────────────────────────────────
 
 export interface PageInput {

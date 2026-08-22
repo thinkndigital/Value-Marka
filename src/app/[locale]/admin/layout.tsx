@@ -17,6 +17,7 @@ const NAV = [
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/cms/homepage", label: "Homepage" },
+  { href: "/admin/cms/announcement", label: "Announcement" },
   { href: "/admin/cms/pages", label: "Pages" },
   { href: "/admin/cms/navigation", label: "Navigation" },
   { href: "/admin/cms/translations", label: "Translations" },

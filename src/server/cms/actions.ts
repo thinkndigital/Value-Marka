@@ -9,6 +9,7 @@ import {
   heroContentSchema,
   limitSchema,
   bannerContentSchema,
+  announcementContentSchema,
   cmsPageSchema,
   cmsPageUpdateSchema,
 } from "@/server/validation/cms";
@@ -224,6 +225,135 @@ export async function deleteBannerAction(
     });
 
     revalidatePath("/admin/cms/homepage");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+// ── Announcement bar ─────────────────────────────────────────────────────
+
+function parseAnnouncementForm(formData: FormData) {
+  return announcementContentSchema.safeParse({
+    textEn: formData.get("textEn"),
+    textAr: formData.get("textAr"),
+    link: formData.get("link"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+}
+
+export async function createAnnouncementAction(
+  _prevState: CmsFormState,
+  formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    const user = await requireCmsUser();
+    const parsed = parseAnnouncementForm(formData);
+    if (!parsed.success) {
+      return { fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]> };
+    }
+
+    const announcement = await cmsService.createAnnouncement(parsed.data);
+
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "cms.announcement.created",
+      entityType: "CmsBlock",
+      entityId: announcement.id,
+    });
+
+    revalidatePath("/admin/cms/announcement");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function updateAnnouncementAction(
+  id: string,
+  _prevState: CmsFormState,
+  formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    const user = await requireCmsUser();
+    const parsed = parseAnnouncementForm(formData);
+    if (!parsed.success) {
+      return { fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]> };
+    }
+
+    await cmsService.updateAnnouncement(id, parsed.data);
+
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "cms.announcement.updated",
+      entityType: "CmsBlock",
+      entityId: id,
+    });
+
+    revalidatePath("/admin/cms/announcement");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function toggleAnnouncementAction(
+  id: string,
+  _prevState: CmsFormState,
+  _formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    await requireCmsUser();
+    await cmsService.toggleAnnouncementActive(id);
+    revalidatePath("/admin/cms/announcement");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function reorderAnnouncementAction(
+  id: string,
+  direction: "up" | "down",
+  _prevState: CmsFormState,
+  _formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    await requireCmsUser();
+    await cmsService.reorderAnnouncement(id, direction);
+    revalidatePath("/admin/cms/announcement");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function deleteAnnouncementAction(
+  id: string,
+  _prevState: CmsFormState,
+  _formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    const user = await requireCmsUser();
+    await cmsService.deleteAnnouncement(id);
+
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "cms.announcement.deleted",
+      entityType: "CmsBlock",
+      entityId: id,
+    });
+
+    revalidatePath("/admin/cms/announcement");
     revalidatePath("/");
     return { success: true };
   } catch (err) {

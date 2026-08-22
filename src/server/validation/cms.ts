@@ -41,6 +41,27 @@ export const cmsPageSchema = z.object({
 
 export const cmsPageUpdateSchema = cmsPageSchema.omit({ slug: true });
 
+const optionalTrimmed = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => (v ? v : undefined));
+
+export const announcementContentSchema = z
+  .object({
+    textEn: z.string().trim().min(1, "Required").max(300),
+    textAr: z.string().trim().min(1, "Required").max(300),
+    link: optionalTrimmed(300),
+    startDate: optionalTrimmed(20),
+    endDate: optionalTrimmed(20),
+  })
+  .refine(
+    (data) => !data.startDate || !data.endDate || data.startDate <= data.endDate,
+    { message: "End date must be on or after the start date.", path: ["endDate"] },
+  );
+
 export const bannerContentSchema = z.object({
   headline: z.string().trim().min(1, "Required").max(150),
   subheadline: z
