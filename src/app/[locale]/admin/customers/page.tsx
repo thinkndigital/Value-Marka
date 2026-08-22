@@ -5,6 +5,7 @@ import { listCustomersPage, getCustomerProfile } from "@/server/services/crm";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
+import { Button } from "@/components/ui/Button";
 import { parsePage } from "@/server/pagination";
 
 export default async function AdminCustomersPage({
@@ -33,7 +34,12 @@ export default async function AdminCustomersPage({
 
   return (
     <div className="vm-container flex flex-col gap-6 py-10">
-      <h1 className="font-display text-2xl font-bold text-text-primary">Customers</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl font-bold text-text-primary">Customers</h1>
+        <Button href="/api/admin/customers/export" variant="outline" size="sm">
+          Export CSV
+        </Button>
+      </div>
 
       {profiles.length === 0 ? (
         <EmptyState title="No customers yet" />
