@@ -14,6 +14,7 @@ import {
   claimFlashSaleStock,
   FlashSaleError,
 } from "./flashSales";
+import { getBundleComponentQuantities } from "./bundles";
 
 export class CheckoutError extends Error {}
 
@@ -236,7 +237,23 @@ export async function placeOrder(userId: string, addressId: string, options: Pla
         // DIGITAL products have no physical stock to reserve — reserving
         // against Inventory would make every digital product permanently
         // unsellable (no Inventory row ever exists for one).
-        if (item.product.type !== "DIGITAL") {
+        if (item.product.type === "BUNDLE") {
+          // A bundle's own Inventory never exists — reserve each
+          // component's real stock instead, scaled by how many bundle
+          // units were bought. The OrderItem itself still records one line
+          // for the bundle (name/price snapshot above); only the
+          // inventory movements happen against the components.
+          const components = await getBundleComponentQuantities(item.productId);
+          for (const component of components) {
+            await reserveStockForItem(tx, {
+              productId: component.componentProductId,
+              variantId: null,
+              quantity: component.quantity * item.quantity,
+              orderId: created.id,
+              actorId: userId,
+            });
+          }
+        } else if (item.product.type !== "DIGITAL") {
           await reserveStockForItem(tx, {
             productId: item.productId,
             variantId: item.variantId,

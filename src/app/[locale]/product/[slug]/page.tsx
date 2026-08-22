@@ -206,6 +206,21 @@ export default async function ProductPage({
                 <p className="text-text-secondary">{product.shortDescription}</p>
               ) : null}
 
+              {product.type === "BUNDLE" && product.bundleItems.length > 0 ? (
+                <div className="flex flex-col gap-1.5 rounded-md border border-border-default bg-bg-sunken p-3">
+                  <p className="font-display text-sm font-semibold text-text-primary">
+                    {t("bundleIncludes")}
+                  </p>
+                  <ul className="flex flex-col gap-1 text-sm text-text-secondary">
+                    {product.bundleItems.map((item) => (
+                      <li key={item.id}>
+                        {item.quantity} × {item.componentProduct.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap items-center gap-3">
                 <AddToCartForm productId={product.id} available={available} />
                 <WishlistButton

@@ -53,7 +53,7 @@ export function ProductForm({
     {},
   );
   const isCreate = warehouses !== undefined;
-  const [productType, setProductType] = useState<"SIMPLE" | "DIGITAL">("SIMPLE");
+  const [productType, setProductType] = useState<"SIMPLE" | "DIGITAL" | "BUNDLE">("SIMPLE");
   const router = useRouter();
 
   useEffect(() => {
@@ -82,13 +82,17 @@ export function ProductForm({
             id="type"
             name="type"
             value={productType}
-            onChange={(e) => setProductType(e.target.value as "SIMPLE" | "DIGITAL")}
+            onChange={(e) => setProductType(e.target.value as "SIMPLE" | "DIGITAL" | "BUNDLE")}
             className="vm-focus-ring h-11 rounded-md border border-border-default bg-bg-surface px-3.5 text-sm text-text-primary"
           >
             <option value="SIMPLE">Physical product</option>
             <option value="DIGITAL">Digital product (file download)</option>
+            <option value="BUNDLE">Bundle (multiple products sold together)</option>
           </select>
-          <p className="text-sm text-text-muted">Type can&apos;t be changed after creation.</p>
+          <p className="text-sm text-text-muted">
+            Type can&apos;t be changed after creation.
+            {productType === "BUNDLE" ? " Add the bundle's components after creating it." : ""}
+          </p>
         </div>
       ) : null}
 
@@ -227,7 +231,7 @@ export function ProductForm({
         </div>
       ) : null}
 
-      {isCreate && productType !== "DIGITAL" ? (
+      {isCreate && productType === "SIMPLE" ? (
         <div className="grid grid-cols-2 gap-4 rounded-md border border-border-default bg-bg-sunken p-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="warehouseId" className="font-display text-sm font-semibold text-text-primary">

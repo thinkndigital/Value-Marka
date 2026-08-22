@@ -73,7 +73,7 @@ export async function createProductAction(
 
     let warehouseId: string | undefined;
     let initialQuantity = 0;
-    if (type !== "DIGITAL") {
+    if (type === "SIMPLE") {
       warehouseId = String(formData.get("warehouseId") ?? "");
       if (!warehouseId) {
         return { fieldErrors: { warehouseId: ["Select a warehouse."] } };

@@ -421,6 +421,8 @@ model Product {
   purchaseOrderItems PurchaseOrderItem[]
   flashSaleItems     FlashSaleItem[]
   digitalFile        DigitalProductFile?
+  bundleItems        ProductBundleItem[] @relation("BundleItems")
+  partOfBundles      ProductBundleItem[] @relation("BundleComponents")
 
   @@unique([sellerId, sku])
   @@index([categoryId])
@@ -795,6 +797,24 @@ model DigitalProductFile {
   createdAt     DateTime @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+/// A BUNDLE product's components (SIMPLE products only — bundling a
+/// bundle or a digital product is refused at the service layer, since a
+/// bundle has no Inventory of its own; its "stock" and every reservation
+/// at checkout are always derived from these rows against the component
+/// products' real Inventory. See getBundleAvailableStock (inventory.ts)
+/// and placeOrder (checkout.ts).
+model ProductBundleItem {
+  id                 String @id @default(uuid())
+  bundleProductId    String
+  componentProductId String
+  quantity           Int
+
+  bundleProduct    Product @relation("BundleItems", fields: [bundleProductId], references: [id], onDelete: Cascade)
+  componentProduct Product @relation("BundleComponents", fields: [componentProductId], references: [id])
+
+  @@unique([bundleProductId, componentProductId])
 }
 
 model FlashSale {

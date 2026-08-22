@@ -8,8 +8,11 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProductForm } from "@/components/seller/ProductForm";
 import { StockAdjustmentForm } from "@/components/seller/StockAdjustmentForm";
+import { BundleComponentsManager } from "@/components/seller/BundleComponentsManager";
 import { updateProductAction } from "@/server/products/actions";
 import { ProductError } from "@/server/services/products";
+import { getAvailableStock } from "@/server/services/inventory";
+import { listBundleComponents, listSimpleProductsForSeller } from "@/server/services/bundles";
 
 export default async function EditProductPage({
   params,
@@ -42,6 +45,15 @@ export default async function EditProductPage({
     product.inventory.length > 0
       ? await listMovementsForInventory(product.inventory[0].id)
       : [];
+
+  const isBundle = product.type === "BUNDLE";
+  const [bundleComponents, simpleProducts, bundleAvailableStock] = isBundle
+    ? await Promise.all([
+        listBundleComponents(product.id),
+        listSimpleProductsForSeller(seller.id),
+        getAvailableStock(product.id),
+      ])
+    : [[], [], 0];
 
   return (
     <div className="vm-container flex flex-col gap-6 py-10">
@@ -95,28 +107,48 @@ export default async function EditProductPage({
             </CardBody>
           </Card>
 
-          <Card>
-            <CardBody className="flex flex-col gap-4">
-              <p className="font-display font-semibold text-text-primary">Stock</p>
-              {warehouses.length === 0 ? (
-                <EmptyState title="No warehouses" description="Add one to adjust stock." />
-              ) : (
-                <StockAdjustmentForm productId={product.id} warehouses={warehouses} />
-              )}
-              {product.inventory.length > 0 ? (
-                <div className="flex flex-col gap-1 border-t border-border-default pt-3 text-sm">
-                  {product.inventory.map((inv) => (
-                    <div key={inv.id} className="flex justify-between text-text-secondary">
-                      <span>{inv.warehouse.name}</span>
-                      <span>
-                        {inv.quantity - inv.reserved} available ({inv.quantity} on hand)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </CardBody>
-          </Card>
+          {isBundle ? (
+            <Card>
+              <CardBody className="flex flex-col gap-4">
+                <p className="font-display font-semibold text-text-primary">Bundle components</p>
+                <BundleComponentsManager
+                  bundleProductId={product.id}
+                  components={bundleComponents}
+                  availableProducts={simpleProducts.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    sku: p.sku,
+                    price: p.price.toString(),
+                    currencyCode: p.currencyCode,
+                  }))}
+                  availableStock={bundleAvailableStock}
+                />
+              </CardBody>
+            </Card>
+          ) : product.type === "SIMPLE" ? (
+            <Card>
+              <CardBody className="flex flex-col gap-4">
+                <p className="font-display font-semibold text-text-primary">Stock</p>
+                {warehouses.length === 0 ? (
+                  <EmptyState title="No warehouses" description="Add one to adjust stock." />
+                ) : (
+                  <StockAdjustmentForm productId={product.id} warehouses={warehouses} />
+                )}
+                {product.inventory.length > 0 ? (
+                  <div className="flex flex-col gap-1 border-t border-border-default pt-3 text-sm">
+                    {product.inventory.map((inv) => (
+                      <div key={inv.id} className="flex justify-between text-text-secondary">
+                        <span>{inv.warehouse.name}</span>
+                        <span>
+                          {inv.quantity - inv.reserved} available ({inv.quantity} on hand)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </CardBody>
+            </Card>
+          ) : null}
 
           {movements.length > 0 ? (
             <Card>

@@ -3,6 +3,7 @@ import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { recordInventoryMovement } from "./inventory";
 import { earnPointsForOrder } from "./loyalty";
+import { expandOrderItemForInventory } from "./bundles";
 import { assertSellerOwns } from "@/server/rbac";
 import { sendEmailNotification } from "@/server/notifications/send";
 import { shipmentEmail, refundEmail } from "@/server/notifications/templates";
@@ -254,7 +255,15 @@ export async function transitionSellerOrder(
     throw new OrderError(`Cannot move an order from ${sellerOrder.status} to ${nextStatus}.`);
   }
 
-  const items = sellerOrder.items.map((i) => ({ productId: i.productId, variantId: i.variantId }));
+  // A bundle OrderItem's own productId never has InventoryMovement rows —
+  // only its components do (see checkout.ts's reservation step) — so every
+  // release/convert-to-sale/restock call below must operate on the
+  // expanded component list, not the bundle's own id.
+  const items = (
+    await Promise.all(
+      sellerOrder.items.map((i) => expandOrderItemForInventory(i.productId, i.variantId)),
+    )
+  ).flat();
 
   await prisma.$transaction(async (tx) => {
     if (nextStatus === "CANCELLED") {
@@ -375,7 +384,11 @@ export async function requestCustomerCancellation(userId: string, orderNumber: s
 
   await prisma.$transaction(async (tx) => {
     for (const sellerOrder of cancellable) {
-      const items = sellerOrder.items.map((i) => ({ productId: i.productId, variantId: i.variantId }));
+      const items = (
+        await Promise.all(
+          sellerOrder.items.map((i) => expandOrderItemForInventory(i.productId, i.variantId)),
+        )
+      ).flat();
       await releaseReservations(tx, order.id, items, userId);
       await tx.sellerOrder.update({ where: { id: sellerOrder.id }, data: { status: "CANCELLED" } });
     }

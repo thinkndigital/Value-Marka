@@ -41,6 +41,7 @@ export function getActiveProductBySlug(slug: string) {
       category: { select: { name: true, slug: true } },
       brand: { select: { name: true } },
       seller: { select: { storeName: true, storeSlug: true } },
+      bundleItems: { include: { componentProduct: { select: { name: true, sku: true } } } },
     },
   });
 }
@@ -66,7 +67,7 @@ export async function createProduct(
   sellerId: string,
   input: ProductInput,
   opts: {
-    type?: "SIMPLE" | "DIGITAL";
+    type?: "SIMPLE" | "DIGITAL" | "BUNDLE";
     warehouseId?: string;
     initialQuantity: number;
     images: NewImage[];
@@ -74,15 +75,16 @@ export async function createProduct(
   },
 ) {
   const type = opts.type ?? "SIMPLE";
+  const hasOwnInventory = type !== "DIGITAL" && type !== "BUNDLE";
   const [category, warehouse, skuTaken, slugTaken] = await Promise.all([
     prisma.category.findUnique({ where: { id: input.categoryId } }),
-    type === "DIGITAL" ? null : prisma.warehouse.findUnique({ where: { id: opts.warehouseId } }),
+    hasOwnInventory ? prisma.warehouse.findUnique({ where: { id: opts.warehouseId } }) : null,
     prisma.product.findUnique({ where: { sellerId_sku: { sellerId, sku: input.sku } } }),
     prisma.product.findUnique({ where: { slug: input.slug } }),
   ]);
 
   if (!category) throw new ProductError("Category not found.");
-  if (type !== "DIGITAL" && (!warehouse || warehouse.sellerId !== sellerId)) {
+  if (hasOwnInventory && (!warehouse || warehouse.sellerId !== sellerId)) {
     throw new ProductError("Select one of your own warehouses.");
   }
   if (skuTaken) throw new ProductError("You already have a product with this SKU.");
@@ -113,7 +115,7 @@ export async function createProduct(
       },
     });
 
-    if (type !== "DIGITAL" && opts.initialQuantity > 0 && opts.warehouseId) {
+    if (hasOwnInventory && opts.initialQuantity > 0 && opts.warehouseId) {
       await recordInventoryMovement(tx, {
         productId: product.id,
         warehouseId: opts.warehouseId,

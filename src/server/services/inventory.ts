@@ -112,12 +112,34 @@ const UNLIMITED_DIGITAL_STOCK = 999_999;
 export async function getAvailableStock(productId: string, variantId?: string | null) {
   const product = await prisma.product.findUnique({ where: { id: productId }, select: { type: true } });
   if (product?.type === "DIGITAL") return UNLIMITED_DIGITAL_STOCK;
+  if (product?.type === "BUNDLE") return getBundleAvailableStock(productId);
 
   const rows = await prisma.inventory.findMany({
     where: { productId, variantId: variantId ?? null },
     select: { quantity: true, reserved: true },
   });
   return rows.reduce((sum, row) => sum + (row.quantity - row.reserved), 0);
+}
+
+/**
+ * A BUNDLE product has no Inventory of its own — how many units are
+ * sellable is always derived, live, from its components' real available
+ * stock (never a cached or seller-entered number). A bundle with zero
+ * components has nothing to sell (0), not unlimited stock — no fake
+ * fallback. Components are always SIMPLE products (enforced in
+ * bundles.ts's addBundleComponent), so this never recurses.
+ */
+export async function getBundleAvailableStock(bundleProductId: string): Promise<number> {
+  const items = await prisma.productBundleItem.findMany({ where: { bundleProductId } });
+  if (items.length === 0) return 0;
+
+  const perComponent = await Promise.all(
+    items.map(async (item) => {
+      const componentAvailable = await getAvailableStock(item.componentProductId);
+      return Math.floor(componentAvailable / item.quantity);
+    }),
+  );
+  return Math.min(...perComponent);
 }
 
 export function listMovementsForInventory(inventoryId: string) {

@@ -40,7 +40,7 @@ export const productSchema = z.object({
 // productSchema above, so an edit form (which never renders a type field)
 // can never silently reset an existing product's type back to the zod
 // default on save.
-export const productTypeSchema = z.enum(["SIMPLE", "DIGITAL"]);
+export const productTypeSchema = z.enum(["SIMPLE", "DIGITAL", "BUNDLE"]);
 
 export const stockAdjustmentSchema = z.object({
   warehouseId: z.string().min(1, "Select a warehouse."),
