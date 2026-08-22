@@ -196,7 +196,8 @@
     "navReviews": "Reviews",
     "navAffiliate": "Affiliate",
     "navReferrals": "Referrals",
-    "navFollowing": "Following"
+    "navFollowing": "Following",
+    "navRewards": "Rewards"
   },
   "Footer": {
     "rights": "© {year} Value Marka. All rights reserved."

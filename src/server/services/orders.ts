@@ -2,6 +2,7 @@ import "server-only";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { recordInventoryMovement } from "./inventory";
+import { earnPointsForOrder } from "./loyalty";
 import { assertSellerOwns } from "@/server/rbac";
 import { sendEmailNotification } from "@/server/notifications/send";
 import { shipmentEmail, refundEmail } from "@/server/notifications/templates";
@@ -288,6 +289,12 @@ export async function transitionSellerOrder(
         where: { sellerOrderId },
         data: { status: "DELIVERED", deliveredAt: new Date() },
       });
+      if (sellerOrder.order.user) {
+        await earnPointsForOrder(tx, sellerOrder.order.user.id, Number(sellerOrder.subtotal), {
+          referenceType: "SellerOrder",
+          referenceId: sellerOrder.id,
+        });
+      }
     }
 
     if (nextStatus === "RETURNED") {

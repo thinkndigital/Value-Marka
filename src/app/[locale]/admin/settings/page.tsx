@@ -54,6 +54,11 @@ const GROUPS: { title: string; items: { href: string; label: string; description
         description: "Time-boxed, server-validated discounts on specific products.",
       },
       {
+        href: "/admin/marketing/loyalty",
+        label: "Loyalty & rewards",
+        description: "Points earn rate and redemption value.",
+      },
+      {
         href: "/admin/affiliates",
         label: "Affiliates",
         description: "Affiliate applications and commission status.",

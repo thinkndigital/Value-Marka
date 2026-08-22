@@ -49,6 +49,7 @@ model User {
   sellerFollows      SellerFollow[]
   couponUsages       CouponUsage[]
   verificationTokens VerificationToken[]
+  loyaltyAccount     LoyaltyAccount?
 
   @@index([status])
 }
@@ -807,6 +808,56 @@ model FlashSaleItem {
 
   @@unique([flashSaleId, productId])
   @@index([productId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Loyalty / rewards — ledger-backed: LoyaltyAccount.balance is a cached sum
+// that only ever changes in the same transaction as the LoyaltyTransaction
+// row that justifies it (never a bare balance write). RewardRule is
+// append-only and versioned by effectiveAt, exactly like ExchangeRate —
+// a past-earned transaction keeps the rate that was in effect when earned;
+// changing the rule never recalculates history.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum LoyaltyTransactionType {
+  EARNED
+  REDEEMED
+}
+
+model LoyaltyAccount {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                 @relation(fields: [userId], references: [id])
+  transactions LoyaltyTransaction[]
+}
+
+model LoyaltyTransaction {
+  id            String                 @id @default(uuid())
+  accountId     String
+  points        Int // signed: positive = earned, negative = redeemed
+  type          LoyaltyTransactionType
+  referenceType String? // e.g. "SellerOrder", "Coupon"
+  referenceId   String?
+  note          String?
+  createdAt     DateTime               @default(now())
+
+  account LoyaltyAccount @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+}
+
+model RewardRule {
+  id                    String   @id @default(uuid())
+  pointsPerCurrencyUnit Decimal  @db.Decimal(10, 4) // points earned per 1 unit of order subtotal
+  redemptionValue       Decimal  @db.Decimal(10, 4) // currency value of 1 point when redeemed
+  effectiveAt           DateTime @default(now())
+  createdAt             DateTime @default(now())
+
+  @@index([effectiveAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
