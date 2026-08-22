@@ -19,6 +19,16 @@ const GROUPS: { title: string; items: { href: string; label: string; description
         description: "Zones and methods used by checkout.",
       },
       {
+        href: "/admin/settings/currencies",
+        label: "Currencies",
+        description: "Which currencies are supported platform-wide.",
+      },
+      {
+        href: "/admin/settings/exchange-rates",
+        label: "Exchange rates",
+        description: "Rate history for cross-currency reporting.",
+      },
+      {
         href: "/admin/coupons",
         label: "Coupons",
         description: "Discount codes and promotions.",

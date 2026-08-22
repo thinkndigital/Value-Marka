@@ -16,6 +16,19 @@ export const shippingZoneSchema = z.object({
   countryCode: z.string().trim().length(2, "Pick a country"),
 });
 
+export const currencyUpdateSchema = z.object({
+  name: z.string().trim().min(1, "Required").max(80),
+  symbol: z.string().trim().min(1, "Required").max(10),
+  decimalDigits: z.coerce.number().int().min(0).max(4),
+});
+
+export const exchangeRateSchema = z.object({
+  fromCode: z.string().trim().length(3, "Pick a currency"),
+  toCode: z.string().trim().length(3, "Pick a currency"),
+  rate: z.coerce.number().positive("Must be greater than zero"),
+  effectiveAt: z.coerce.date(),
+});
+
 export const shippingMethodSchema = z.object({
   name: z.string().trim().min(1, "Required").max(120),
   price: z.coerce.number().min(0),

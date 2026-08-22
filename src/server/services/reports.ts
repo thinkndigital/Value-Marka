@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
+import { convertCurrency, CurrencyError } from "./currency";
 
 export interface DateRange {
   from?: Date;
@@ -146,6 +147,74 @@ export async function getPlatformFinancialReport(
     netProfit,
     payableBalance: 0,
   };
+}
+
+export interface ConsolidatedFinancialReport extends Omit<FinancialReport, "currencyCode" | "payableBalance"> {
+  baseCurrencyCode: string;
+  /** Currencies that had real ledger activity but couldn't convert (no ExchangeRate row for that pair) — excluded from the totals below, not silently dropped. */
+  unconvertedCurrencies: string[];
+}
+
+const NUMERIC_FIELDS = [
+  "grossSales",
+  "refunds",
+  "discounts",
+  "netSales",
+  "cogs",
+  "grossProfit",
+  "commission",
+  "tax",
+  "shipping",
+  "expenses",
+  "netProfit",
+] as const;
+
+/**
+ * The real use of ExchangeRate this project was missing: every other
+ * report is necessarily per-currency (summing JOD and SAR together would
+ * be meaningless), so there was no way to see one platform-wide total.
+ * This converts each currency's real report into baseCurrencyCode and
+ * sums them — using the rate in effect at `range.to` (or now, for an
+ * open-ended range), never re-deriving it per line item.
+ */
+export async function getConsolidatedPlatformFinancialReport(
+  baseCurrencyCode: string,
+  range: DateRange = {},
+): Promise<ConsolidatedFinancialReport> {
+  const currencies = await listCurrenciesWithLedgerActivity("PLATFORM");
+  const atDate = range.to ?? new Date();
+
+  const totals: Record<(typeof NUMERIC_FIELDS)[number], number> = {
+    grossSales: 0,
+    refunds: 0,
+    discounts: 0,
+    netSales: 0,
+    cogs: 0,
+    grossProfit: 0,
+    commission: 0,
+    tax: 0,
+    shipping: 0,
+    expenses: 0,
+    netProfit: 0,
+  };
+  const unconvertedCurrencies: string[] = [];
+
+  for (const currencyCode of currencies) {
+    const report = await getPlatformFinancialReport(currencyCode, range);
+    try {
+      for (const field of NUMERIC_FIELDS) {
+        totals[field] += await convertCurrency(report[field], currencyCode, baseCurrencyCode, atDate);
+      }
+    } catch (err) {
+      if (err instanceof CurrencyError) {
+        unconvertedCurrencies.push(currencyCode);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  return { baseCurrencyCode, unconvertedCurrencies, ...totals };
 }
 
 export async function listCurrenciesWithLedgerActivity(subjectType: "SELLER" | "PLATFORM", subjectId?: string) {

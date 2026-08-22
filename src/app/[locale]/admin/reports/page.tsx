@@ -1,8 +1,13 @@
 import { hasPermission } from "@/server/rbac";
 import { requireUser } from "@/server/auth/guards";
 import { Forbidden } from "@/components/Forbidden";
-import { getPlatformFinancialReport, listCurrenciesWithLedgerActivity } from "@/server/services/reports";
-import { Card, CardBody } from "@/components/ui/Card";
+import {
+  getPlatformFinancialReport,
+  getConsolidatedPlatformFinancialReport,
+  listCurrenciesWithLedgerActivity,
+} from "@/server/services/reports";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 
@@ -50,6 +55,15 @@ export default async function AdminReportsPage({
 
   const range = { from: from ? new Date(from) : undefined, to: to ? new Date(to) : undefined };
   const report = await getPlatformFinancialReport(currency, range);
+
+  // Only worth showing once there's real activity in more than one
+  // currency — a single-currency platform's "consolidated" view would
+  // just be the same numbers again.
+  const allCurrencies = await listCurrenciesWithLedgerActivity("PLATFORM");
+  const consolidated =
+    allCurrencies.length > 1
+      ? await getConsolidatedPlatformFinancialReport(currency, range)
+      : null;
 
   return (
     <div className="vm-container flex max-w-xl flex-col gap-6 py-10">
@@ -125,6 +139,33 @@ export default async function AdminReportsPage({
           <Row label="Net profit" value={report.netProfit} currency={currency} emphasize />
         </CardBody>
       </Card>
+
+      {consolidated ? (
+        <Card>
+          <CardHeader>
+            <h2 className="font-display font-semibold text-text-primary">
+              Consolidated, converted to {currency}
+            </h2>
+            <p className="text-sm text-text-muted">
+              Every currency with platform activity, converted to {currency} using the exchange
+              rate in effect {to ? "on the report end date" : "now"} — not a re-sum of the numbers
+              above.
+            </p>
+          </CardHeader>
+          <CardBody className="flex flex-col gap-2">
+            {consolidated.unconvertedCurrencies.length > 0 ? (
+              <Alert variant="warning">
+                No exchange rate on file for: {consolidated.unconvertedCurrencies.join(", ")} — those
+                are excluded from the totals below. Add a rate in Exchange rates settings.
+              </Alert>
+            ) : null}
+            <Row label="Gross sales (all currencies)" value={consolidated.grossSales} currency={currency} />
+            <Row label="Net sales" value={consolidated.netSales} currency={currency} emphasize />
+            <Row label="Commission revenue" value={consolidated.commission} currency={currency} emphasize />
+            <Row label="Net profit" value={consolidated.netProfit} currency={currency} emphasize />
+          </CardBody>
+        </Card>
+      ) : null}
     </div>
   );
 }
