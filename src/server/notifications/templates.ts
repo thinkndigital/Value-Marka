@@ -104,6 +104,18 @@ export function payoutReleasedEmail(input: { amount: string; currencyCode: strin
   };
 }
 
+export function passwordResetEmail(resetUrl: string): Template {
+  return {
+    subject: "Reset your Value Marka password",
+    html: layout(
+      "Reset your password",
+      `<p>We received a request to reset your password. This link expires in 1 hour and can only be used once.</p>
+       <p><a href="${resetUrl}" style="color:#1c2229;">Reset your password</a></p>
+       <p>If you didn't request this, you can safely ignore this email — your password won't change.</p>`,
+    ),
+  };
+}
+
 export function abandonedCartEmail(itemCount: number): Template {
   return {
     subject: "You left something in your cart",

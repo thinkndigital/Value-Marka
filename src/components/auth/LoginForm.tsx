@@ -41,6 +41,12 @@ export function LoginForm({ action }: { action: LoginAction }) {
         label={t("password")}
         error={state.errors?.password?.[0]}
       />
+      <Link
+        href="/forgot-password"
+        className="text-end text-sm font-semibold text-navy-600 hover:underline"
+      >
+        {t("forgotPassword")}
+      </Link>
       <Button type="submit" variant="primary" size="lg" loading={pending}>
         {pending ? t("submitting") : t("submit")}
       </Button>

@@ -7,16 +7,18 @@ import { writeAuditLog } from "@/server/audit";
 import { redirect } from "@/i18n/navigation";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, deleteSession } from "./session";
-import { loginSchema, registerSchema } from "./schemas";
+import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "./schemas";
 import { sendEmailNotification } from "@/server/notifications/send";
 import { welcomeEmail } from "@/server/notifications/templates";
 import { recordReferral } from "@/server/services/referrals";
 import { checkRateLimit } from "./rateLimit";
+import { requestPasswordReset, resetPassword, PasswordResetError } from "./passwordReset";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS_PER_IP = 20;
 const MAX_REGISTER_ATTEMPTS_PER_IP = 10;
+const MAX_PASSWORD_RESET_ATTEMPTS_PER_IP = 10;
 
 export interface AuthFormState {
   errors?: Record<string, string[]>;
@@ -201,4 +203,81 @@ export async function loginAction(
 export async function logoutAction(locale: string) {
   await deleteSession();
   return redirect({ href: "/", locale });
+}
+
+export interface ForgotPasswordFormState {
+  errors?: Record<string, string[]>;
+  formError?: string;
+  success?: boolean;
+}
+
+export async function forgotPasswordAction(
+  locale: string,
+  _prevState: ForgotPasswordFormState,
+  formData: FormData,
+): Promise<ForgotPasswordFormState> {
+  const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { errors: fieldErrors(parsed.error) };
+  }
+
+  const meta = await requestMeta();
+  if (meta.ipAddress) {
+    const allowed = await checkRateLimit(
+      "password-reset-request",
+      meta.ipAddress,
+      MAX_PASSWORD_RESET_ATTEMPTS_PER_IP,
+    );
+    if (!allowed) {
+      return { formError: "Too many attempts. Please try again later." };
+    }
+  }
+
+  // Deliberately the same response whether or not the email is registered
+  // (requestPasswordReset silently no-ops for an unknown email) — telling
+  // the caller which emails have accounts is a real information leak.
+  await requestPasswordReset(parsed.data.email, locale, meta.ipAddress);
+  return { success: true };
+}
+
+export interface ResetPasswordFormState {
+  errors?: Record<string, string[]>;
+  formError?: string;
+  success?: boolean;
+}
+
+export async function resetPasswordAction(
+  _prevState: ResetPasswordFormState,
+  formData: FormData,
+): Promise<ResetPasswordFormState> {
+  const parsed = resetPasswordSchema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { errors: fieldErrors(parsed.error) };
+  }
+
+  const meta = await requestMeta();
+  if (meta.ipAddress) {
+    const allowed = await checkRateLimit(
+      "password-reset-submit",
+      meta.ipAddress,
+      MAX_PASSWORD_RESET_ATTEMPTS_PER_IP,
+    );
+    if (!allowed) {
+      return { formError: "Too many attempts. Please try again later." };
+    }
+  }
+
+  try {
+    await resetPassword(parsed.data.token, parsed.data.password, meta.ipAddress);
+  } catch (err) {
+    if (err instanceof PasswordResetError) {
+      return { formError: err.message };
+    }
+    throw err;
+  }
+
+  return { success: true };
 }

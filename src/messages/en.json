@@ -145,7 +145,8 @@
       "submitting": "Signing in…",
       "noAccount": "Don't have an account?",
       "createAccount": "Create one",
-      "errorInvalid": "That email and password don't match our records."
+      "errorInvalid": "That email and password don't match our records.",
+      "forgotPassword": "Forgot your password?"
     },
     "Register": {
       "title": "Create your account",
@@ -161,6 +162,25 @@
       "signIn": "Sign in",
       "errorEmailTaken": "An account with this email already exists.",
       "errorGeneric": "Something went wrong. Please try again."
+    },
+    "ForgotPassword": {
+      "title": "Reset your password",
+      "subtitle": "Enter your email and we'll send you a reset link.",
+      "email": "Email",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "success": "If an account exists for that email, we've sent a reset link.",
+      "backToLogin": "Back to sign in"
+    },
+    "ResetPassword": {
+      "title": "Choose a new password",
+      "subtitle": "Enter a new password for your account.",
+      "password": "New password",
+      "passwordHint": "At least 8 characters, with a letter and a number.",
+      "submit": "Reset password",
+      "submitting": "Resetting…",
+      "success": "Your password has been reset. You can now sign in.",
+      "signIn": "Sign in"
     }
   },
   "Account": {
