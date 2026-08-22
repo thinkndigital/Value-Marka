@@ -334,9 +334,16 @@ client instantiation don't work on Vercel's build model).
    that database's real connection string (some integrations name their
    own var `POSTGRES_URL` or `POSTGRES_PRISMA_URL` instead — copy that
    value into `DATABASE_URL` if so, since that's the name this app reads).
-3. **Set the other required env vars** from `.env.example` (`SESSION_SECRET`,
-   `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, `NEXT_PUBLIC_APP_URL`, payment/
-   email/SMS provider keys as needed).
+3. **Set the other required env vars** from `.env.example` — at minimum
+   `SESSION_SECRET` (32+ random characters) and
+   `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, plus `NEXT_PUBLIC_APP_URL` and
+   payment/email/SMS provider keys as needed. Unlike `DATABASE_URL`,
+   nothing at build time checks these are set — `next build` succeeds
+   without them, and the app only fails the first time a request actually
+   needs one (session creation on login/register), as a real runtime
+   error rather than a build failure. Use `/api/debug?secret=$CRON_SECRET`
+   (see below) after deploying to confirm they're actually present before
+   finding out from a user-facing error.
 4. **Migrations run automatically on every Vercel deploy.** `package.json`
    defines a `vercel-build` script (Vercel prefers this over `build` when
    present) that runs `prisma migrate deploy` and the idempotent
@@ -354,3 +361,17 @@ client instantiation don't work on Vercel's build model).
 Background jobs (abandoned-cart recovery, Cloud Scheduler in section 4.3)
 have no Vercel equivalent configured — either keep running them against a
 Cloud Scheduler → this Vercel URL, or leave them disabled until needed.
+
+### 9.1 Diagnosing a deployed instance without digging through platform logs
+
+`GET /api/debug?secret=$CRON_SECRET` (reuses the same `CRON_SECRET` env var
+`/api/cron/*` already trusts — no separate secret to manage) runs the real
+DB connection, checks core tables are migrated, confirms a SUPER_ADMIN
+exists, and round-trips a session token through the exact code path
+login/register use — returning plain JSON with the real error message and
+stack for whichever check fails. Built after exactly this kind of failure
+(a missing `SESSION_SECRET` on Vercel) was hard to pin down from Vercel's
+Runtime Logs UI alone: `next build` doesn't check these vars, so a
+misconfiguration doesn't show up until a real user hits it as
+`{"severity":"ERROR",...}` deep in a log stream. Point a browser at that
+URL instead of hunting through logs.
