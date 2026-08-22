@@ -79,6 +79,11 @@ const GROUPS: { title: string; items: { href: string; label: string; description
         description: "Site-wide banner shown above the header.",
       },
       {
+        href: "/admin/cms/popups",
+        label: "Popups",
+        description: "Scheduled, audience-targeted popup shown once per session.",
+      },
+      {
         href: "/admin/cms/pages",
         label: "Pages",
         description: "Standalone CMS pages.",

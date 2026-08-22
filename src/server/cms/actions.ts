@@ -10,6 +10,7 @@ import {
   limitSchema,
   bannerContentSchema,
   announcementContentSchema,
+  popupContentSchema,
   cmsPageSchema,
   cmsPageUpdateSchema,
 } from "@/server/validation/cms";
@@ -354,6 +355,141 @@ export async function deleteAnnouncementAction(
     });
 
     revalidatePath("/admin/cms/announcement");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+// ── Popups ───────────────────────────────────────────────────────────────
+
+function parsePopupForm(formData: FormData) {
+  return popupContentSchema.safeParse({
+    titleEn: formData.get("titleEn"),
+    titleAr: formData.get("titleAr"),
+    bodyEn: formData.get("bodyEn"),
+    bodyAr: formData.get("bodyAr"),
+    imageUrl: formData.get("imageUrl"),
+    ctaLabelEn: formData.get("ctaLabelEn"),
+    ctaLabelAr: formData.get("ctaLabelAr"),
+    ctaHref: formData.get("ctaHref"),
+    target: formData.get("target"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+}
+
+export async function createPopupAction(
+  _prevState: CmsFormState,
+  formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    const user = await requireCmsUser();
+    const parsed = parsePopupForm(formData);
+    if (!parsed.success) {
+      return { fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]> };
+    }
+
+    const popup = await cmsService.createPopup(parsed.data);
+
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "cms.popup.created",
+      entityType: "CmsBlock",
+      entityId: popup.id,
+    });
+
+    revalidatePath("/admin/cms/popups");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function updatePopupAction(
+  id: string,
+  _prevState: CmsFormState,
+  formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    const user = await requireCmsUser();
+    const parsed = parsePopupForm(formData);
+    if (!parsed.success) {
+      return { fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]> };
+    }
+
+    await cmsService.updatePopup(id, parsed.data);
+
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "cms.popup.updated",
+      entityType: "CmsBlock",
+      entityId: id,
+    });
+
+    revalidatePath("/admin/cms/popups");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function togglePopupAction(
+  id: string,
+  _prevState: CmsFormState,
+  _formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    await requireCmsUser();
+    await cmsService.togglePopupActive(id);
+    revalidatePath("/admin/cms/popups");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function reorderPopupAction(
+  id: string,
+  direction: "up" | "down",
+  _prevState: CmsFormState,
+  _formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    await requireCmsUser();
+    await cmsService.reorderPopup(id, direction);
+    revalidatePath("/admin/cms/popups");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err) {
+    return handleCmsError(err);
+  }
+}
+
+export async function deletePopupAction(
+  id: string,
+  _prevState: CmsFormState,
+  _formData: FormData,
+): Promise<CmsFormState> {
+  try {
+    const user = await requireCmsUser();
+    await cmsService.deletePopup(id);
+
+    await writeAuditLog({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "cms.popup.deleted",
+      entityType: "CmsBlock",
+      entityId: id,
+    });
+
+    revalidatePath("/admin/cms/popups");
     revalidatePath("/");
     return { success: true };
   } catch (err) {

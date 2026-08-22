@@ -317,6 +317,128 @@ export async function deleteAnnouncement(id: string) {
   await prisma.cmsBlock.delete({ where: { id } });
 }
 
+// ── Admin: popups ─────────────────────────────────────────────────────
+// Same CmsBlock-reuse pattern as the announcement bar above: one row per
+// popup holding both languages, `locale` fixed to a nominal constant, and
+// sortOrder doubling as priority. To stay non-intrusive only the single
+// highest-priority match is ever returned — never more than one popup at
+// once — and the storefront additionally remembers a dismissal per
+// browser session (client-side), so a visitor never sees the same popup
+// twice in one visit.
+
+const POPUP_KEY = "site.popup";
+const POPUP_LOCALE = "en";
+export type PopupTarget = "ALL" | "GUEST" | "CUSTOMER";
+
+export interface PopupContent {
+  titleEn: string;
+  titleAr: string;
+  bodyEn: string;
+  bodyAr: string;
+  imageUrl?: string;
+  ctaLabelEn?: string;
+  ctaLabelAr?: string;
+  ctaHref?: string;
+  target: PopupTarget;
+  startDate?: string; // ISO date, inclusive
+  endDate?: string; // ISO date, inclusive
+}
+
+export function listPopupsForAdmin() {
+  return prisma.cmsBlock.findMany({
+    where: { key: POPUP_KEY, locale: POPUP_LOCALE, pageId: null },
+    orderBy: { sortOrder: "asc" },
+  });
+}
+
+/** The single highest-priority popup that's enabled, in its date range, and matches the visitor's audience right now. */
+export async function getActivePopup(locale: string, isLoggedIn: boolean, now: Date = new Date()) {
+  const blocks = await prisma.cmsBlock.findMany({
+    where: { key: POPUP_KEY, locale: POPUP_LOCALE, isActive: true, pageId: null },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const audience: PopupTarget = isLoggedIn ? "CUSTOMER" : "GUEST";
+  const active = blocks.find((block) => {
+    const content = block.content as unknown as PopupContent;
+    if (content.target !== "ALL" && content.target !== audience) return false;
+    if (content.startDate && new Date(content.startDate) > now) return false;
+    if (content.endDate && new Date(content.endDate) < now) return false;
+    return true;
+  });
+  if (!active) return null;
+
+  const content = active.content as unknown as PopupContent;
+  return {
+    id: active.id,
+    title: locale === "ar" ? content.titleAr : content.titleEn,
+    body: locale === "ar" ? content.bodyAr : content.bodyEn,
+    imageUrl: content.imageUrl,
+    ctaLabel: locale === "ar" ? content.ctaLabelAr : content.ctaLabelEn,
+    ctaHref: content.ctaHref,
+  };
+}
+
+export async function createPopup(content: PopupContent) {
+  const last = await prisma.cmsBlock.findFirst({
+    where: { key: POPUP_KEY, locale: POPUP_LOCALE, pageId: null },
+    orderBy: { sortOrder: "desc" },
+  });
+  return prisma.cmsBlock.create({
+    data: {
+      key: POPUP_KEY,
+      type: "popup",
+      locale: POPUP_LOCALE,
+      sortOrder: (last?.sortOrder ?? -1) + 1,
+      content: content as unknown as Prisma.InputJsonValue,
+    },
+  });
+}
+
+async function getOwnedPopup(id: string) {
+  const block = await prisma.cmsBlock.findUnique({ where: { id } });
+  if (!block || block.key !== POPUP_KEY) throw new CmsError("Popup not found.");
+  return block;
+}
+
+export async function updatePopup(id: string, content: PopupContent) {
+  await getOwnedPopup(id);
+  return prisma.cmsBlock.update({
+    where: { id },
+    data: { content: content as unknown as Prisma.InputJsonValue },
+  });
+}
+
+export async function togglePopupActive(id: string) {
+  const block = await getOwnedPopup(id);
+  return prisma.cmsBlock.update({ where: { id }, data: { isActive: !block.isActive } });
+}
+
+export async function reorderPopup(id: string, direction: "up" | "down") {
+  const block = await getOwnedPopup(id);
+  const neighbor = await prisma.cmsBlock.findFirst({
+    where: {
+      key: POPUP_KEY,
+      locale: POPUP_LOCALE,
+      pageId: null,
+      sortOrder: direction === "up" ? { lt: block.sortOrder } : { gt: block.sortOrder },
+    },
+    orderBy: { sortOrder: direction === "up" ? "desc" : "asc" },
+  });
+  if (!neighbor) return block;
+
+  await prisma.$transaction([
+    prisma.cmsBlock.update({ where: { id: block.id }, data: { sortOrder: neighbor.sortOrder } }),
+    prisma.cmsBlock.update({ where: { id: neighbor.id }, data: { sortOrder: block.sortOrder } }),
+  ]);
+  return block;
+}
+
+export async function deletePopup(id: string) {
+  await getOwnedPopup(id);
+  await prisma.cmsBlock.delete({ where: { id } });
+}
+
 // ── Admin: landing pages (CmsPage) ──────────────────────────────────────
 
 export interface PageInput {

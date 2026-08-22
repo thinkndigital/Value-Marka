@@ -62,6 +62,25 @@ export const announcementContentSchema = z
     { message: "End date must be on or after the start date.", path: ["endDate"] },
   );
 
+export const popupContentSchema = z
+  .object({
+    titleEn: z.string().trim().min(1, "Required").max(150),
+    titleAr: z.string().trim().min(1, "Required").max(150),
+    bodyEn: z.string().trim().min(1, "Required").max(1000),
+    bodyAr: z.string().trim().min(1, "Required").max(1000),
+    imageUrl: optionalTrimmed(2000),
+    ctaLabelEn: optionalTrimmed(60),
+    ctaLabelAr: optionalTrimmed(60),
+    ctaHref: optionalTrimmed(300),
+    target: z.enum(["ALL", "GUEST", "CUSTOMER"]),
+    startDate: optionalTrimmed(20),
+    endDate: optionalTrimmed(20),
+  })
+  .refine(
+    (data) => !data.startDate || !data.endDate || data.startDate <= data.endDate,
+    { message: "End date must be on or after the start date.", path: ["endDate"] },
+  );
+
 export const bannerContentSchema = z.object({
   headline: z.string().trim().min(1, "Required").max(150),
   subheadline: z
