@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/server/db";
 import * as currency from "@/server/services/currency";
 import { CurrencyError } from "@/server/services/currency";
@@ -11,7 +11,7 @@ const PREFIX = "currency-test-";
 const FROM = "JOD";
 const TO = "SAR";
 
-let createdRateIds: string[] = [];
+const createdRateIds: string[] = [];
 
 afterAll(async () => {
   await prisma.exchangeRate.deleteMany({ where: { id: { in: createdRateIds } } });

@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { JsonLd } from "@/components/JsonLd";
 import { Badge } from "@/components/ui/Badge";
 import { AddToCartForm } from "@/components/AddToCartForm";
 import { WishlistButton } from "@/components/WishlistButton";
@@ -14,17 +15,22 @@ import { listReviewsForProduct } from "@/server/services/reviews";
 import { isProductWishlisted } from "@/server/services/wishlist";
 import { getCurrentUser } from "@/server/auth/dal";
 
+function appUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+}
+
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
+  const { locale, slug } = await params;
   const product = await getActiveProductBySlug(slug);
   if (!product) return {};
   return {
     title: product.seoTitle ?? `${product.name} — Value Marka`,
     description: product.seoDescription ?? product.shortDescription ?? undefined,
+    alternates: { canonical: `${appUrl()}/${locale}/product/${slug}` },
   };
 }
 
@@ -50,8 +56,60 @@ export default async function ProductPage({
       ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
       : null;
 
+  const base = appUrl();
+  const productUrl = `${base}/${locale}/product/${product.slug}`;
+
   return (
     <div className="flex min-h-screen flex-col">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.name,
+          description: product.shortDescription ?? product.description ?? undefined,
+          sku: product.sku,
+          image: product.images.map((img) => img.url),
+          brand: product.brand ? { "@type": "Brand", name: product.brand.name } : undefined,
+          offers: {
+            "@type": "Offer",
+            url: productUrl,
+            priceCurrency: product.currencyCode,
+            price: product.price.toString(),
+            availability:
+              available > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            seller: { "@type": "Organization", name: product.seller.storeName },
+          },
+          ...(avgRating !== null
+            ? {
+                aggregateRating: {
+                  "@type": "AggregateRating",
+                  ratingValue: avgRating,
+                  reviewCount: reviews.length,
+                },
+              }
+            : {}),
+        }}
+      />
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Home", item: `${base}/${locale}` },
+            ...(product.category
+              ? [
+                  {
+                    "@type": "ListItem",
+                    position: 2,
+                    name: product.category.name,
+                    item: `${base}/${locale}/search?category=${product.category.slug}`,
+                  },
+                ]
+              : []),
+            { "@type": "ListItem", position: product.category ? 3 : 2, name: product.name, item: productUrl },
+          ],
+        }}
+      />
       <SiteHeader locale={locale} />
 
       <main id="main-content" className="flex-1">

@@ -12,9 +12,11 @@ export async function generateMetadata({
   const { locale, slug } = await params;
   const page = await getPublishedCmsPage(slug, locale);
   if (!page) return {};
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return {
     title: page.seoTitle ?? undefined,
     description: page.seoDescription ?? undefined,
+    alternates: { canonical: `${base}/${locale}/page/${slug}` },
   };
 }
 

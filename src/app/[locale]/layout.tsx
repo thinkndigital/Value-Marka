@@ -4,7 +4,12 @@ import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Cairo, Tajawal } from "next/font/google";
 import { routing } from "@/i18n/routing";
+import { JsonLd } from "@/components/JsonLd";
 import "../globals.css";
+
+function appUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+}
 
 const cairo = Cairo({
   subsets: ["latin", "arabic"],
@@ -26,9 +31,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Metadata" });
+  const base = appUrl();
   return {
     title: t("title"),
     description: t("description"),
+    alternates: {
+      canonical: `${base}/${locale}`,
+      languages: Object.fromEntries(routing.locales.map((l) => [l, `${base}/${l}`])),
+    },
   };
 }
 
@@ -50,6 +60,8 @@ export default async function LocaleLayout({
 
   const messages = await getMessages();
   const dir = locale === "ar" ? "rtl" : "ltr";
+  const base = appUrl();
+  const t = await getTranslations({ locale, namespace: "Metadata" });
 
   return (
     <html
@@ -58,6 +70,23 @@ export default async function LocaleLayout({
       className={`${cairo.variable} ${tajawal.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-bg-page text-text-primary">
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "Value Marka",
+            url: base,
+          }}
+        />
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: t("title"),
+            url: `${base}/${locale}`,
+            inLanguage: locale,
+          }}
+        />
         <NextIntlClientProvider messages={messages}>
           {children}
         </NextIntlClientProvider>

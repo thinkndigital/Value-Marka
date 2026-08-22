@@ -20,14 +20,16 @@ async function getStore(slug: string) {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
+  const { locale, slug } = await params;
   const store = await getStore(slug);
   if (!store) return {};
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return {
     title: `${store.storeName} — Value Marka`,
     description: store.description ?? undefined,
+    alternates: { canonical: `${base}/${locale}/store/${slug}` },
   };
 }
 
