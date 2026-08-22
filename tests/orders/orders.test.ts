@@ -197,6 +197,12 @@ afterAll(async () => {
   await prisma.warehouse.deleteMany({ where: { id: { in: [warehouseAId, warehouseBId] } } });
   await prisma.address.deleteMany({ where: { id: addressId } });
   await prisma.seller.deleteMany({ where: { id: { in: [sellerAId, sellerBId] } } });
+  // A DELIVERED transition above can earn real loyalty points for buyerId
+  // if loyalty.test.ts happens to have an active RewardRule at that moment
+  // during parallel test-file execution — clean those up before the user,
+  // or user.deleteMany fails on LoyaltyAccount's FK.
+  await prisma.loyaltyTransaction.deleteMany({ where: { account: { userId: buyerId } } });
+  await prisma.loyaltyAccount.deleteMany({ where: { userId: buyerId } });
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } });
   await prisma.category.deleteMany({ where: { id: categoryId } });
   await prisma.$disconnect();

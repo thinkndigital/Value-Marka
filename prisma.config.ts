@@ -19,12 +19,23 @@ try {
 // `migrate`/`db push`/`studio` do — those still fail naturally (and
 // appropriately) if DATABASE_URL is genuinely missing when actually
 // connecting, just not merely from loading this file.
+//
+// `migrate deploy` takes a Postgres advisory lock, which needs a
+// session-level connection — it hangs and fails with P1002 ("timed out
+// trying to acquire a postgres advisory lock") against a *pooled*
+// connection string (Neon/Supabase/Vercel Postgres poolers, PgBouncer in
+// transaction mode), because the pooler can hand different statements to
+// different backend sessions. DIRECT_URL, when set, is the same database's
+// direct/unpooled connection string and is what migrations use instead —
+// see .env.example. The app's own runtime connection (src/server/db.ts)
+// is unaffected either way and keeps using the (possibly pooled)
+// DATABASE_URL, since ordinary queries don't need session affinity.
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     seed: "node --experimental-strip-types prisma/seed.ts",
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? "",
+    url: process.env.DIRECT_URL || process.env.DATABASE_URL || "",
   },
 });

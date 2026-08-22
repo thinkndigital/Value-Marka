@@ -361,6 +361,23 @@ client instantiation don't work on Vercel's build model).
    that database's real connection string (some integrations name their
    own var `POSTGRES_URL` or `POSTGRES_PRISMA_URL` instead — copy that
    value into `DATABASE_URL` if so, since that's the name this app reads).
+2a. **If that connection string is pooled, also set `DIRECT_URL`.** Neon,
+   Supabase, and Vercel Postgres all put you on a pooled connection
+   (PgBouncer-style) by default — usually the first/only string shown, and
+   the one most of their "quick start" panels copy for you. `prisma migrate
+   deploy` (step 4 below) takes a Postgres advisory lock, which requires a
+   session-level connection and reliably fails against a pooled one with
+   `Error: P1002 ... Timed out trying to acquire a postgres advisory lock`
+   — a build failure, not a runtime one, so the deploy never even gets to
+   serve a request. Fix: also set `DIRECT_URL` to that same database's
+   direct/unpooled connection string (Neon: the endpoint without
+   `-pooler` in the hostname; Supabase: the "Direct connection" string on
+   the Database settings page, usually port 5432; Vercel Postgres:
+   `POSTGRES_URL_NON_POOLING`). `prisma.config.ts` uses `DIRECT_URL` for
+   migrations when set and falls back to `DATABASE_URL` otherwise — the
+   app's own runtime queries (`src/server/db.ts`) always use `DATABASE_URL`
+   and are unaffected either way, so it's fine (in fact preferable, for
+   connection-limit reasons) to leave that one pooled.
 3. **Set the other required env vars** from `.env.example` — at minimum
    `SESSION_SECRET` (32+ random characters) and
    `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, plus `NEXT_PUBLIC_APP_URL` and
