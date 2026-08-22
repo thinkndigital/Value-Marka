@@ -35,7 +35,16 @@ const nextConfig: NextConfig = {
   // output. This is what the Dockerfile (see DEPLOYMENT.md) copies into
   // the runtime image for Cloud Run, instead of shipping the full
   // node_modules tree.
-  output: "standalone",
+  //
+  // Deliberately *not* set on Vercel: Vercel builds its own serverless
+  // functions from Next's default output-file-tracing manifests
+  // (.next/server/*.nft.json) — "standalone" mode changes where/how those
+  // are emitted and breaks Vercel's build step (it looks for
+  // `.next/next-server.js.nft.json` and finds nothing). `VERCEL` is a env
+  // var Vercel sets automatically on every build; this repo's sanctioned
+  // deploy target (DEPLOYMENT.md) is Cloud Run via the Dockerfile, so this
+  // only ever needs to be "standalone" there.
+  ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
 
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
