@@ -24,6 +24,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // apps/* are independent Next.js apps with their own ESLint config.
+    "apps/**",
   ]),
 ]);
 

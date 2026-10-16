@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
+    // apps/* run their own test suites.
+    exclude: ["**/node_modules/**", "apps/**"],
   },
   resolve: {
     alias: {

@@ -1,0 +1,42 @@
+/*
+ * Typography tokens. Font families come from next/font (src/app/fonts.ts):
+ * Latin glyphs resolve to Inter / Inter Tight, Arabic glyphs fall through to
+ * IBM Plex Sans Arabic / Alexandria — one stack serves mixed AR/EN text.
+ * PROVISIONAL until Think Digital's brand typefaces are confirmed.
+ */
+:root {
+  --font-body-stack: var(--font-inter), var(--font-plex-arabic), system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --font-display-stack: var(--font-inter-tight), var(--font-alexandria), var(--font-inter), system-ui, sans-serif;
+  --font-mono-stack: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Fluid scale (320px → 1440px) */
+  --fs-display: clamp(2.5rem, 1.6rem + 4.6vw, 5.75rem);
+  --fs-h1: clamp(2.25rem, 1.6rem + 3.2vw, 4.25rem);
+  --fs-h2: clamp(1.75rem, 1.35rem + 2vw, 3rem);
+  --fs-h3: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --fs-h4: 1.125rem;
+  --fs-body-lg: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  --fs-body: 1rem;
+  --fs-sm: 0.875rem;
+  --fs-xs: 0.75rem;
+
+  /* Latin defaults */
+  --leading-display: 1.02;
+  --leading-heading: 1.1;
+  --leading-body: 1.6;
+  --tracking-display: -0.035em;
+  --tracking-heading: -0.02em;
+  --tracking-eyebrow: 0.12em;
+  --eyebrow-transform: uppercase;
+}
+
+/* Arabic is connected script: no negative tracking, no uppercase, taller lines. */
+[dir="rtl"] {
+  --leading-display: 1.25;
+  --leading-heading: 1.3;
+  --leading-body: 1.8;
+  --tracking-display: 0;
+  --tracking-heading: 0;
+  --tracking-eyebrow: 0;
+  --eyebrow-transform: none;
+}

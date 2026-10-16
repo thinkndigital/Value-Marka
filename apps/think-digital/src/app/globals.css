@@ -1,0 +1,262 @@
+@import "tailwindcss";
+@import "../styles/tokens/color.css";
+@import "../styles/tokens/type.css";
+@import "../styles/tokens/space.css";
+@import "../styles/tokens/motion.css";
+
+/*
+ * Think Digital Design System → Tailwind v4.
+ * `inline` makes utilities reference the role variables directly, so
+ * .surface-inverse / .surface-brand / [dir=rtl] overrides cascade into every
+ * utility (bg-bg, text-fg, text-h1 …) without per-component variants.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-sunken: var(--bg-sunken);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent-text);
+  --color-tech: var(--tech);
+  --color-tech-hover: var(--tech-hover);
+  --color-tech-fg: var(--tech-fg);
+  --color-tech-text: var(--tech-text);
+  --color-inverse-bg: var(--inverse-bg);
+  --color-inverse-fg: var(--inverse-fg);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-focus: var(--focus-color);
+
+  --font-sans: var(--font-body-stack);
+  --font-display: var(--font-display-stack);
+  --font-mono: var(--font-mono-stack);
+
+  --text-display: var(--fs-display);
+  --text-display--line-height: var(--leading-display);
+  --text-display--letter-spacing: var(--tracking-display);
+  --text-h1: var(--fs-h1);
+  --text-h1--line-height: var(--leading-heading);
+  --text-h1--letter-spacing: var(--tracking-display);
+  --text-h2: var(--fs-h2);
+  --text-h2--line-height: var(--leading-heading);
+  --text-h2--letter-spacing: var(--tracking-heading);
+  --text-h3: var(--fs-h3);
+  --text-h3--line-height: var(--leading-heading);
+  --text-h3--letter-spacing: var(--tracking-heading);
+  --text-h4: var(--fs-h4);
+  --text-h4--line-height: var(--leading-heading);
+  --text-body-lg: var(--fs-body-lg);
+  --text-body-lg--line-height: var(--leading-body);
+  --text-body: var(--fs-body);
+  --text-body--line-height: var(--leading-body);
+}
+
+@theme {
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgb(14 15 18 / 0.06);
+  --shadow-md: 0 2px 4px rgb(14 15 18 / 0.04), 0 8px 24px rgb(14 15 18 / 0.08);
+  --shadow-overlay: 0 24px 64px rgb(14 15 18 / 0.24);
+
+  --breakpoint-xs: 30rem; /* 480px */
+}
+
+/* ---------- Base ---------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    scroll-padding-top: calc(var(--header-h) + 1rem);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body-stack);
+    font-size: var(--fs-body);
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display-stack);
+    font-weight: 700;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-fg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus-color);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ---------- Layout utilities ---------- */
+@utility container-site {
+  width: 100%;
+  max-width: calc(var(--container) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+@utility container-wide {
+  width: 100%;
+  max-width: calc(var(--container-wide) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+@utility container-prose {
+  width: 100%;
+  max-width: calc(var(--container-prose) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+@utility section-y {
+  padding-block: var(--section-y);
+}
+@utility hit-target {
+  min-height: var(--hit-min);
+  min-width: var(--hit-min);
+}
+@utility eyebrow {
+  font-family: var(--font-display-stack);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: var(--eyebrow-transform);
+  color: var(--fg-muted);
+}
+/* Mirrors an icon (arrows, chevrons) in RTL. */
+@utility flip-rtl {
+  &:where([dir="rtl"] *) {
+    transform: scaleX(-1);
+  }
+}
+/* Numbers, emails, phone numbers stay LTR inside Arabic text. */
+@utility ltr-island {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---------- Motion primitives (tokens only; components in Phase 4) ---------- */
+@utility motion-nudge {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+@utility motion-lift {
+  transition:
+    transform var(--duration-normal) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-normal) var(--ease-standard);
+  &:hover {
+    transform: translateY(var(--hover-lift));
+  }
+}
+
+/* ---------- Accordion (native <details>, animated where supported) ---------- */
+.td-accordion {
+  interpolate-size: allow-keywords;
+}
+.td-accordion details::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size var(--duration-normal) var(--ease-standard),
+    content-visibility var(--duration-normal) allow-discrete;
+}
+.td-accordion details[open]::details-content {
+  block-size: auto;
+}
+.td-accordion summary {
+  list-style: none;
+}
+.td-accordion summary::-webkit-details-marker {
+  display: none;
+}
+.td-accordion details[open] .td-accordion-icon {
+  transform: rotate(45deg);
+}
+
+/* ---------- Dialog (native <dialog>) ---------- */
+dialog.td-dialog {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+  transition:
+    opacity var(--duration-normal) var(--ease-enter),
+    transform var(--duration-normal) var(--ease-enter),
+    overlay var(--duration-normal) allow-discrete,
+    display var(--duration-normal) allow-discrete;
+}
+dialog.td-dialog[open] {
+  opacity: 1;
+  transform: none;
+}
+@starting-style {
+  dialog.td-dialog[open] {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+dialog.td-dialog::backdrop {
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition:
+    opacity var(--duration-normal) var(--ease-standard),
+    overlay var(--duration-normal) allow-discrete,
+    display var(--duration-normal) allow-discrete;
+}
+dialog.td-dialog[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  dialog.td-dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* ---------- NEW badge pulse ---------- */
+@keyframes td-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}

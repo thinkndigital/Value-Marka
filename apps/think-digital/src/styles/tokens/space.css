@@ -1,0 +1,23 @@
+/*
+ * Layout, spacing, radius, elevation and layering tokens.
+ * Spacing steps use Tailwind's default 4px scale 1:1 (p-4 = 16px); only the
+ * layout-level rhythm lives here.
+ */
+:root {
+  --container: 80rem; /* 1280px */
+  --container-wide: 90rem; /* 1440px */
+  --container-prose: 72ch;
+  --gutter: clamp(1rem, 0.6rem + 2vw, 2rem); /* 16px at 320px */
+  --section-y: clamp(4rem, 2.5rem + 7vw, 9rem);
+  --header-h: 4.5rem;
+  --hit-min: 2.75rem; /* 44px minimum touch target */
+
+  /* Radius and shadow scales live in globals.css @theme (they are Tailwind theme namespaces). */
+
+  --z-base: 0;
+  --z-sticky: 30;
+  --z-header: 40;
+  --z-overlay: 60;
+  --z-modal: 70;
+  --z-toast: 80;
+}

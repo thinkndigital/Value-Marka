@@ -1,0 +1,147 @@
+{
+  "Metadata": {
+    "title": "Think Digital — فكر رقمياً",
+    "description": "A team of digital marketing, technology and creative production experts turning ideas into measurable results."
+  },
+  "Common": {
+    "skipToContent": "Skip to content",
+    "home": "Home",
+    "required": "required",
+    "close": "Close"
+  },
+  "Holding": {
+    "eyebrow": "Under construction",
+    "title": "We think digital. We build what grows.",
+    "lead": "A team of digital marketing, technology and creative production experts turning ideas into measurable results.",
+    "styleGuide": "Design system"
+  },
+  "StyleGuide": {
+    "metaTitle": "Design System — Think Digital",
+    "eyebrow": "Phase 3 · Design System",
+    "title": "Think Digital Design System",
+    "lead": "One source for every colour, typeface, spacing step, motion token and component. Every page of the site and the dashboard is built from here.",
+    "provisional": "Colours and typefaces are PROVISIONAL until Think Digital's official identity arrives. The structure is final; the values change in one file.",
+    "sections": {
+      "colors": "Colour",
+      "typography": "Typography",
+      "spacing": "Spacing & grid",
+      "radius": "Radius & elevation",
+      "motion": "Motion",
+      "buttons": "Buttons",
+      "forms": "Forms",
+      "badges": "Badges & tags",
+      "cards": "Cards",
+      "services": "Service cards",
+      "projects": "Project cards",
+      "content": "Testimonials & pricing",
+      "faq": "FAQ",
+      "overlays": "Dialogs, tooltips & tabs",
+      "feedback": "States & alerts",
+      "surfaces": "Surfaces",
+      "responsive": "Responsive rules"
+    },
+    "sample": "Illustrative sample — not real data",
+    "typeSample": "Turning ideas into measurable results",
+    "bodySample": "We start by understanding your project and analysing the market and competitors, then plan, execute, measure performance in real time and keep improving.",
+    "motionHint": "Hover or Tab onto each card. With the system \"reduce motion\" setting on, every duration becomes 0ms.",
+    "buttons": {
+      "primary": "Start your project",
+      "secondary": "Book a consultation",
+      "tech": "Explore technology",
+      "outline": "All services",
+      "ghost": "Learn more",
+      "loading": "Sending",
+      "disabled": "Unavailable"
+    },
+    "form": {
+      "name": "Name",
+      "email": "Email",
+      "emailHint": "We reply within one business day.",
+      "emailError": "Enter a valid email, like name@company.com",
+      "service": "Service",
+      "servicePlaceholder": "Choose a service",
+      "message": "Your message",
+      "consent": "I agree to the privacy policy"
+    },
+    "services": {
+      "marketing": {
+        "title": "Digital marketing strategy",
+        "text": "A clear plan grounded in market and competitor analysis, executed and measured."
+      },
+      "social": {
+        "title": "Social media & advertising",
+        "text": "Campaigns and ads that are run and optimised continuously to lift returns."
+      },
+      "branding": {
+        "title": "Visual identity",
+        "text": "A complete identity that builds an influential presence for your brand."
+      },
+      "webapps": {
+        "title": "Web applications",
+        "text": "Client portals, dashboards and business systems that actually run."
+      }
+    },
+    "project": {
+      "title": "Project name",
+      "client": "Client — NEEDS SOURCE",
+      "industry": "Industry",
+      "summary": "A short description of the project and its result. Shown only for a real project.",
+      "placeholder": "Project image — awaiting source"
+    },
+    "testimonial": {
+      "quote": "The testimonial appears here exactly as the client wrote it.",
+      "author": "Client name",
+      "role": "Role, Company"
+    },
+    "pricing": {
+      "name": "Package name",
+      "price": "Per project",
+      "note": "Pricing NEEDS SOURCE",
+      "featured": "Most requested",
+      "feature": "A feature included in the package",
+      "cta": "Book a consultation"
+    },
+    "faq": {
+      "q1": "Are your services available in every country?",
+      "a1": "Yes — all our digital services are delivered online and can be carried out from anywhere in the world.",
+      "q2": "How do you measure results?",
+      "a2": "We measure performance in real time with advanced analytics tools, share clear reports, and keep improving.",
+      "source": "Q1 is from thinkndigital.com (translated); Q2 is an illustrative sample built from the site's methodology copy."
+    },
+    "overlays": {
+      "dialogOpen": "Open dialog",
+      "dialogTitle": "Book a consultation",
+      "dialogBody": "A real modal: focus is trapped inside, Esc closes it, and focus returns to the button.",
+      "tooltipTrigger": "What is this?",
+      "tooltip": "Shown on hover or focus; Esc dismisses it.",
+      "tabsLabel": "Service groups",
+      "tabGrowth": "Growth",
+      "tabCreative": "Creative",
+      "tabTech": "Technology",
+      "tabGrowthBody": "Digital marketing · Social media · SEO",
+      "tabCreativeBody": "Visual identity · Media production",
+      "tabTechBody": "Websites · Web applications · AI & automation"
+    },
+    "feedback": {
+      "success": "Message sent",
+      "successBody": "Thank you — we'll be in touch shortly.",
+      "error": "Couldn't send",
+      "errorBody": "Check the highlighted fields and try again.",
+      "info": "Note",
+      "infoBody": "This section appears only when real data exists.",
+      "warning": "Heads up",
+      "warningBody": "Some content is awaiting a source.",
+      "emptyTitle": "No results",
+      "emptyBody": "Try different keywords or remove some filters.",
+      "emptyAction": "Clear filters",
+      "new": "NEW",
+      "newDetail": "New animation"
+    },
+    "surfaces": {
+      "default": "Default surface",
+      "inverse": "Inverse surface",
+      "brand": "Brand surface",
+      "body": "The same components adapt to every surface automatically."
+    }
+  }
+}

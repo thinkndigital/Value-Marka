@@ -1,0 +1,108 @@
+/*
+ * Think Digital — color tokens.
+ *
+ * PROVISIONAL BRAND VALUES: the real Think Digital palette is NEEDS SOURCE
+ * (see docs/think-digital/PHASE-1-AUDIT-AND-ARCHITECTURE.md §0). Only the
+ * `--brand-*` / `--tech-*` ramps below should change when it arrives; every
+ * component reads the semantic roles further down, never a ramp directly.
+ *
+ * Contrast for every role pair is enforced by tests/tokens.contrast.test.ts.
+ */
+:root {
+  /* Raw ramps */
+  --ink-950: #0e0f12;
+  --ink-800: #23262d;
+  --ink-600: #4a4f59;
+  --ink-400: #8b909a;
+  --ink-200: #d6d3cc;
+  --ink-100: #e8e5de;
+
+  --paper-0: #ffffff;
+  --paper-50: #f6f4ef;
+  --paper-100: #eeebe4;
+
+  --brand-400: #ff7a45; /* PROVISIONAL — Think Digital primary */
+  --brand-500: #ff5b1f; /* PROVISIONAL */
+  --brand-600: #e64a10; /* PROVISIONAL */
+  --brand-800: #a8360c; /* PROVISIONAL — text-safe brand */
+
+  --tech-500: #2433e0; /* PROVISIONAL — technology accent */
+  --tech-600: #1b27b8; /* PROVISIONAL */
+  --tech-300: #9aa3ff; /* PROVISIONAL — tech accent on dark */
+
+  --green-700: #157f4c;
+  --red-700: #b42b24;
+  --amber-800: #8a5100;
+
+  /* Semantic roles — light surface (default) */
+  --bg: var(--paper-50);
+  --bg-elevated: var(--paper-0);
+  --bg-sunken: var(--paper-100);
+  --fg: var(--ink-950);
+  --fg-muted: var(--ink-600);
+  --border: var(--ink-200);
+  --border-strong: var(--ink-400);
+
+  --primary: var(--brand-500);
+  --primary-hover: var(--brand-400);
+  --primary-fg: var(--ink-950);
+  --accent-text: var(--brand-800);
+
+  --tech: var(--tech-500);
+  --tech-hover: var(--tech-600);
+  --tech-fg: var(--paper-0);
+  --tech-text: var(--tech-500);
+
+  --inverse-bg: var(--ink-950);
+  --inverse-fg: var(--paper-50);
+
+  --success: var(--green-700);
+  --danger: var(--red-700);
+  --warning: var(--amber-800);
+  --info: var(--tech-500);
+  --success-soft: color-mix(in srgb, var(--green-700) 12%, transparent);
+  --danger-soft: color-mix(in srgb, var(--red-700) 10%, transparent);
+  --warning-soft: color-mix(in srgb, var(--amber-800) 12%, transparent);
+  --info-soft: color-mix(in srgb, var(--tech-500) 10%, transparent);
+  --primary-soft: color-mix(in srgb, var(--brand-500) 14%, transparent);
+
+  --focus-color: var(--tech-500);
+  --overlay: color-mix(in srgb, var(--ink-950) 60%, transparent);
+}
+
+/*
+ * Inverse surface: any subtree with .surface-inverse re-maps the same roles,
+ * so every component works on dark sections without a dark variant of its own.
+ */
+.surface-inverse {
+  --bg: var(--ink-950);
+  --bg-elevated: var(--ink-800);
+  --bg-sunken: #16181d;
+  --fg: var(--paper-50);
+  --fg-muted: #a7abb3;
+  --border: #2c3038;
+  --border-strong: #7d828c;
+  --accent-text: var(--brand-400);
+  --tech-text: var(--tech-300);
+  --inverse-bg: var(--paper-50);
+  --inverse-fg: var(--ink-950);
+  --success: #4cc38a;
+  --danger: #ff7b72;
+  --warning: #f0b44c;
+  --info: var(--tech-300);
+  --focus-color: var(--tech-300);
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+.surface-brand {
+  --bg: var(--brand-500);
+  --bg-elevated: var(--brand-400);
+  --fg: var(--ink-950);
+  --fg-muted: var(--ink-800);
+  --border: color-mix(in srgb, var(--ink-950) 20%, transparent);
+  --accent-text: var(--ink-950);
+  --focus-color: var(--ink-950);
+  background-color: var(--bg);
+  color: var(--fg);
+}
